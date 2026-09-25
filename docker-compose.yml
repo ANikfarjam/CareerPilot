@@ -1,0 +1,61 @@
+name: careerai
+
+# Code-execution sandbox for the agents. Never started by `docker compose up`
+# (it's behind a profile); agents/sandbox/session.py starts one throwaway
+# container per search (shared by all portals) with
+# `docker compose run -d --rm sandbox`.
+x-sandbox: &sandbox
+  image: careerai-sandbox:latest
+  build:
+    context: agents/sandbox
+  profiles: [sandbox]
+  command: ["sleep", "infinity"] # commands are run with `docker exec`
+  labels:
+    careerai.sandbox: "1"
+
+  # Hardening
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  working_dir: /workspace
+  tmpfs:
+    - /workspace:size=2g,uid=1000,gid=1000
+    - /tmp:size=1g
+
+  # Resource limits
+  mem_limit: 8g
+  shm_size: 2g # torch DataLoader workers / NCCL need shared memory
+  cpus: 4
+  pids_limit: 512
+
+  # Local model weights, read-only: load with from_pretrained(os.environ["MODEL_PATH"])
+  volumes:
+    - ./llmModel:/models/llm:ro
+  environment:
+    HOME: /workspace # root fs is read-only; pip/torch caches go to the tmpfs
+    PYTHONUNBUFFERED: "1"
+    MODEL_PATH: /models/llm
+    HF_HUB_OFFLINE: "1"
+
+services:
+  # Needs the NVIDIA Container Toolkit on the host.
+  sandbox:
+    <<: *sandbox
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all # or device_ids: ["0"]
+              capabilities: [gpu]
+
+  # Same sandbox without GPU or torch, for machines without the NVIDIA toolkit.
+  sandbox-cpu:
+    <<: *sandbox
+    image: careerai-sandbox:cpu
+    build:
+      context: agents/sandbox
+      args:
+        BASE_IMAGE: ubuntu:24.04
+        WITH_TORCH: "0"

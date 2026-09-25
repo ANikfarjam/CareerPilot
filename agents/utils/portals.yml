@@ -1,0 +1,1109 @@
+# portals.yml — Job Portal and Company Scan Configuration
+# Used by: /career-ops scan
+# Profile: Ashkan Nikfarjam — ML/AI/Platform Engineer, Bay Area
+#
+# Levels:
+#   0 — Local parser (zero-token, if script exists)
+#   1 — Playwright (direct company careers page)
+#   2 — ATS API (Greenhouse / Ashby / Lever / Workday)
+#   3 — WebSearch queries (portal-wide discovery)
+
+# ─────────────────────────────────────────────────────────
+# TITLE FILTER
+# At least 1 positive keyword must match; 0 negative keywords.
+# ─────────────────────────────────────────────────────────
+title_filter:
+  # NOTE (2026-07-01): tightened from bare single-word terms ("engineer", "AI", "ML",
+  # "backend", "platform", "infrastructure", "software engineer", etc.) which matched
+  # almost any tech role at any tracked company. Positive keywords now require an
+  # actual AI/ML/bio domain signal, matching config/profile.yml target_roles + archetypes.
+  positive:
+    - "machine learning engineer"
+    - "ml engineer"
+    - "ai engineer"
+    - "applied ai"
+    - "applied scientist"
+    - "ai platform"
+    - "ml platform"
+    - "mlops"
+    - "llmops"
+    - "ai infrastructure"
+    - "ml infrastructure"
+    - "llm engineer"
+    - "llm"
+    - "inference engineer"
+    - "generative ai"
+    - "foundation model"
+    - "forward deployed"
+    - "research engineer"
+    - "computational biology"
+    - "computational biologist"
+    - "bioinformatics"
+    - "genomics"
+    - "full-stack ai"
+    - "full stack ai"
+    - "agentic"
+    - "ai agent"
+  negative:
+    - "intern"
+    - "director"
+    - " VP "
+    - "vice president"
+    - "head of"
+    - "chief"
+    - "people manager"
+    - "account executive"
+    - "account manager"
+    - "sales"
+    - "marketing"
+    - "recruiter"
+    - "talent"
+    - " hr "
+    - "finance"
+    - "legal"
+    - "counsel"
+    - "business development"
+    - "customer success"
+    - "solutions consultant"
+  seniority_boost:
+    - "senior"
+    - "staff"
+    - "lead"
+    - "sr."
+    - "sr "
+    - "mid-level"
+    - "mid level"
+    - "ii "
+    - " iii "
+
+# ─────────────────────────────────────────────────────────
+# LOCATION FILTER
+# block takes precedence over allow.
+# Empty location field always passes (don't penalize missing data).
+# ─────────────────────────────────────────────────────────
+location_filter:
+  block:
+    - "london"
+    - "united kingdom"
+    - " uk "
+    - "berlin"
+    - "germany"
+    - "paris"
+    - "france"
+    - "toronto"
+    - "canada"
+    - "australia"
+    - "singapore"
+    - "india"
+    - "amsterdam"
+    - "netherlands"
+    - "zurich"
+    - "switzerland"
+    - "dublin"
+    - "ireland"
+    - "tel aviv"
+    - "israel"
+    - "stockholm"
+    - "sweden"
+    - "oslo"
+    - "norway"
+    - "warsaw"
+    - "poland"
+    - "beijing"
+    - "shanghai"
+    - "hong kong"
+    - "tokyo"
+    - "japan"
+    - "korea"
+  allow:
+    - "remote"
+    - "san francisco"
+    - "bay area"
+    - "silicon valley"
+    - "california"
+    - "new york"
+    - "nyc"
+    - "seattle"
+    - "austin"
+    - "boston"
+    - "chicago"
+    - "denver"
+    - "atlanta"
+    - "united states"
+    - " us "
+    - "usa"
+    - "hybrid"
+    - "distributed"
+    - "anywhere"
+
+# ─────────────────────────────────────────────────────────
+# SEARCH QUERIES — WebSearch portal sweep (Level 3)
+# Covers job boards that don't have direct parsers.
+# Runs in parallel. Results are deduplicated against tracked_companies.
+# ─────────────────────────────────────────────────────────
+search_queries:
+
+  # ── Ashby (startup-heavy ATS) ──────────────────────────
+  - name: "Ashby — ML/AI Engineer"
+    query: 'site:jobs.ashbyhq.com "ML Engineer" OR "Machine Learning Engineer" OR "AI Engineer"'
+    enabled: true
+
+  - name: "Ashby — AI Platform/MLOps"
+    query: 'site:jobs.ashbyhq.com "AI Platform" OR "MLOps" OR "LLMOps" OR "ML Platform" OR "AI Infrastructure"'
+    enabled: true
+
+  - name: "Ashby — LLM/Inference Engineer"
+    query: 'site:jobs.ashbyhq.com "LLM Engineer" OR "Inference Engineer" OR "Foundation Model" OR "Generative AI Engineer"'
+    enabled: true
+
+  - name: "Ashby — Backend/Full-Stack AI"
+    query: 'site:jobs.ashbyhq.com ("Backend Engineer" OR "Software Engineer" OR "Full Stack") (AI OR ML OR "machine learning")'
+    enabled: true
+
+  - name: "Ashby — Bioinformatics"
+    query: 'site:jobs.ashbyhq.com "Bioinformatics" OR "Computational Biology" OR "Genomics Software"'
+    enabled: true
+
+  - name: "Ashby — Research Engineer"
+    query: 'site:jobs.ashbyhq.com "Research Engineer" OR "Applied Scientist" OR "ML Research"'
+    enabled: true
+
+  # ── Greenhouse (scale-ups and mid-size) ───────────────
+  - name: "Greenhouse — ML/AI Engineer"
+    query: 'site:job-boards.greenhouse.io "ML Engineer" OR "Machine Learning Engineer" OR "AI Engineer"'
+    enabled: true
+
+  - name: "Greenhouse — AI Platform/MLOps"
+    query: 'site:job-boards.greenhouse.io "AI Platform" OR "MLOps" OR "LLMOps" OR "ML Infrastructure" OR "AI Infrastructure"'
+    enabled: true
+
+  - name: "Greenhouse — LLM/Foundation Model"
+    query: 'site:job-boards.greenhouse.io "LLM" OR "Large Language Model" OR "Foundation Model" OR "Generative AI" engineer'
+    enabled: true
+
+  - name: "Greenhouse — Data/Platform Engineer AI"
+    query: 'site:job-boards.greenhouse.io ("Data Engineer" OR "Platform Engineer" OR "Backend Engineer") (AI OR ML OR "machine learning")'
+    enabled: true
+
+  - name: "Greenhouse — Bioinformatics"
+    query: 'site:job-boards.greenhouse.io "Bioinformatics" OR "Computational Biology" OR "Genomics" OR "Computational Biologist"'
+    enabled: true
+
+  - name: "Greenhouse — Research Engineer"
+    query: 'site:job-boards.greenhouse.io "Research Engineer" OR "Applied Scientist" OR "Research Scientist" (AI OR ML)'
+    enabled: true
+
+  - name: "Greenhouse EU — ML/AI"
+    query: 'site:job-boards.eu.greenhouse.io "ML Engineer" OR "AI Engineer" OR "Machine Learning" remote'
+    enabled: true
+
+  # ── Lever ──────────────────────────────────────────────
+  - name: "Lever — ML/AI Engineer"
+    query: 'site:jobs.lever.co "ML Engineer" OR "Machine Learning Engineer" OR "AI Engineer"'
+    enabled: true
+
+  - name: "Lever — MLOps/LLM/Platform"
+    query: 'site:jobs.lever.co "MLOps" OR "AI Platform" OR "LLM" OR "ML Platform" OR "LLMOps"'
+    enabled: true
+
+  - name: "Lever — Data/Backend AI"
+    query: 'site:jobs.lever.co ("Data Engineer" OR "Backend Engineer" OR "Platform Engineer") (AI OR ML)'
+    enabled: true
+
+  - name: "Lever — Bioinformatics"
+    query: 'site:jobs.lever.co "Bioinformatics" OR "Computational Biology" OR "Genomics Engineer"'
+    enabled: true
+
+  # ── Indeed ─────────────────────────────────────────────
+  - name: "Indeed — ML Engineer Remote/SF"
+    query: 'site:indeed.com "Machine Learning Engineer" (remote OR "San Francisco" OR "Bay Area") -intern'
+    enabled: true
+
+  - name: "Indeed — AI Engineer Remote"
+    query: 'site:indeed.com "AI Engineer" (remote OR "San Francisco" OR "Bay Area") -intern -director'
+    enabled: true
+
+  - name: "Indeed — MLOps/AI Platform"
+    query: 'site:indeed.com "MLOps Engineer" OR "AI Platform Engineer" OR "ML Infrastructure" remote'
+    enabled: true
+
+  - name: "Indeed — LLMOps/LLM Engineer"
+    query: 'site:indeed.com "LLMOps" OR "LLM Engineer" OR "AI Infrastructure Engineer" remote'
+    enabled: true
+
+  - name: "Indeed — Bioinformatics Engineer"
+    query: 'site:indeed.com "Bioinformatics Software Engineer" OR "Computational Biology" OR "Genomics Software" (remote OR "San Francisco")'
+    enabled: true
+
+  - name: "Indeed — Senior ML/AI Bay Area"
+    query: 'site:indeed.com "Senior Machine Learning" OR "Senior AI Engineer" OR "Staff ML Engineer" "Bay Area" OR California'
+    enabled: true
+
+  # ── ZipRecruiter ────────────────────────────────────────
+  - name: "ZipRecruiter — ML/AI Engineer"
+    query: 'site:ziprecruiter.com "Machine Learning Engineer" OR "AI Engineer" (remote OR "San Francisco" OR "Bay Area")'
+    enabled: true
+
+  - name: "ZipRecruiter — MLOps/AI Platform"
+    query: 'site:ziprecruiter.com "MLOps Engineer" OR "AI Platform Engineer" OR "ML Platform" remote'
+    enabled: true
+
+  - name: "ZipRecruiter — LLM/AI Infrastructure"
+    query: 'site:ziprecruiter.com "LLM" OR "LLMOps" OR "AI Infrastructure" engineer remote'
+    enabled: true
+
+  - name: "ZipRecruiter — Bioinformatics"
+    query: 'site:ziprecruiter.com "Bioinformatics Engineer" OR "Computational Biology" (remote OR California)'
+    enabled: true
+
+  # ── LinkedIn ────────────────────────────────────────────
+  - name: "LinkedIn — ML/AI Engineer SF"
+    query: 'site:linkedin.com/jobs "Machine Learning Engineer" OR "AI Engineer" "San Francisco"'
+    enabled: true
+
+  - name: "LinkedIn — Remote ML/AI Senior"
+    query: 'site:linkedin.com/jobs ("Senior ML Engineer" OR "Staff ML Engineer" OR "Senior AI Engineer") remote'
+    enabled: true
+
+  - name: "LinkedIn — MLOps/LLMOps Remote"
+    query: 'site:linkedin.com/jobs "MLOps" OR "LLMOps" OR "AI Platform Engineer" (remote OR "San Francisco")'
+    enabled: true
+
+  - name: "LinkedIn — Bioinformatics Software"
+    query: 'site:linkedin.com/jobs "Bioinformatics Software Engineer" OR "Computational Biology" (remote OR "San Francisco")'
+    enabled: true
+
+  # ── Wellfound / AngelList (startups) ────────────────────
+  - name: "Wellfound — ML/AI Engineer"
+    query: 'site:wellfound.com "Machine Learning Engineer" OR "AI Engineer" OR "ML Engineer"'
+    enabled: true
+
+  - name: "Wellfound — MLOps/AI Platform"
+    query: 'site:wellfound.com "MLOps" OR "AI Platform" OR "LLM Engineer" OR "Inference Engineer"'
+    enabled: true
+
+  - name: "Wellfound — Full-Stack AI"
+    query: 'site:wellfound.com ("Full Stack" OR "Backend Engineer") (AI OR ML OR "machine learning")'
+    enabled: true
+
+  # ── Glassdoor ───────────────────────────────────────────
+  - name: "Glassdoor — ML/AI Engineer"
+    query: 'site:glassdoor.com "Machine Learning Engineer" OR "AI Engineer" ("San Francisco" OR remote)'
+    enabled: true
+
+  - name: "Glassdoor — MLOps/AI Platform"
+    query: 'site:glassdoor.com "MLOps" OR "AI Platform" OR "LLM Engineer" remote'
+    enabled: true
+
+  # ── Built In (tech-focused) ─────────────────────────────
+  - name: "Built In SF — ML/AI"
+    query: 'site:builtin.com "Machine Learning Engineer" OR "AI Engineer" OR "MLOps" "San Francisco"'
+    enabled: true
+
+  - name: "Built In — Remote ML/AI"
+    query: 'site:builtin.com "Machine Learning Engineer" OR "AI Engineer" remote'
+    enabled: true
+
+  # ── Y Combinator ────────────────────────────────────────
+  - name: "YC Jobs — ML/AI Engineer"
+    query: 'site:ycombinator.com/jobs "ML Engineer" OR "AI Engineer" OR "Machine Learning"'
+    enabled: true
+
+  - name: "YC Jobs — MLOps/Platform"
+    query: 'site:ycombinator.com/jobs "MLOps" OR "AI Platform" OR "LLM" OR "Inference"'
+    enabled: true
+
+  # ── Dice (tech job board) ───────────────────────────────
+  - name: "Dice — ML/AI Engineer"
+    query: 'site:dice.com "Machine Learning Engineer" OR "AI Engineer" OR "MLOps" (remote OR "San Francisco")'
+    enabled: true
+
+  # ── Hired ───────────────────────────────────────────────
+  - name: "Hired — ML/AI"
+    query: 'site:hired.com "Machine Learning Engineer" OR "AI Engineer" OR "ML Engineer"'
+    enabled: true
+
+  # ── Bioinformatics-specific portals ─────────────────────
+  - name: "ISCB — Bioinformatics Jobs"
+    query: 'site:careers.iscb.org "Software Engineer" OR "Bioinformatics" OR "Computational Biology"'
+    enabled: true
+
+  - name: "Bioinformatics.org — Jobs"
+    query: 'site:bioinformatics.org/jobs "Software Engineer" OR "Bioinformatics"'
+    enabled: true
+
+  - name: "Nature Jobs — Computational Bio"
+    query: 'site:nature.com/naturecareers "Bioinformatics" OR "Computational Biology" OR "Genomics" engineer'
+    enabled: true
+
+  # ── Google Careers direct ───────────────────────────────
+  - name: "Google Careers — ML/AI"
+    query: 'site:careers.google.com "ML Engineer" OR "Machine Learning" OR "AI Research" OR "Research Engineer"'
+    enabled: true
+
+  # ── SimplyHired ─────────────────────────────────────────
+  - name: "SimplyHired — ML/AI Remote"
+    query: 'site:simplyhired.com "Machine Learning Engineer" OR "AI Engineer" remote -intern'
+    enabled: true
+
+  # ── Joblist ─────────────────────────────────────────────
+  - name: "Joblist — ML/AI"
+    query: 'site:joblist.com "Machine Learning Engineer" OR "AI Engineer" OR "MLOps" remote'
+    enabled: true
+
+  # ── Remote-first job boards ─────────────────────────────
+  - name: "Remote.co — ML/AI"
+    query: 'site:remote.co "Machine Learning" OR "AI Engineer" OR "MLOps"'
+    enabled: true
+
+  - name: "We Work Remotely — ML/AI"
+    query: 'site:weworkremotely.com "Machine Learning" OR "AI Engineer" OR "ML Engineer"'
+    enabled: true
+
+  - name: "Remotive — ML/AI"
+    query: 'site:remotive.com "ML Engineer" OR "AI Engineer" OR "Machine Learning Engineer" OR "MLOps"'
+    enabled: true
+
+
+# ─────────────────────────────────────────────────────────
+# TRACKED COMPANIES — Direct career page monitoring (Level 1 + 2)
+# Each entry is scraped directly via Playwright.
+# `api:` entries also get a fast ATS API call (Level 2).
+# ─────────────────────────────────────────────────────────
+tracked_companies:
+
+  # ════════════════════════════════════════════
+  # AI LABS & FOUNDATIONAL AI
+  # ════════════════════════════════════════════
+
+  - name: Anthropic
+    careers_url: https://www.anthropic.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/anthropic/jobs
+    enabled: true
+
+  - name: OpenAI
+    careers_url: https://jobs.ashbyhq.com/openai
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: openai
+    enabled: true
+
+  - name: xAI
+    careers_url: https://x.ai/careers
+    api: https://boards-api.greenhouse.io/v1/boards/xai/jobs
+    enabled: true
+
+  - name: Mistral AI
+    careers_url: https://jobs.ashbyhq.com/mistralai
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: mistralai
+    enabled: true
+    # note: scan.mjs's Ashby provider uses the public posting-api (api.ashbyhq.com/posting-api/job-board/mistralai) which 404s even though the GraphQL endpoint and the hosted page both work; Mistral appears to have disabled the public posting-api feed for this board
+
+  - name: Cohere
+    careers_url: https://cohere.com/careers
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: cohere
+    enabled: true
+
+  - name: AI21 Labs
+    careers_url: https://www.ai21.com/careers
+    enabled: true
+    # note: no ATS match found as of 2026-07-01 scan; careers page currently shows no open roles
+
+  - name: Aleph Alpha
+    careers_url: https://jobs.ashbyhq.com/AlephAlpha
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: AlephAlpha
+    enabled: true
+
+  - name: Inflection AI
+    careers_url: https://inflection.ai/careers
+    enabled: true
+
+  - name: Adept AI
+    careers_url: https://www.adept.ai/about-careers/
+    enabled: true
+
+  # ════════════════════════════════════════════
+  # AI INFRASTRUCTURE & COMPUTE
+  # ════════════════════════════════════════════
+
+  - name: NVIDIA
+    careers_url: https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite
+    enabled: true
+
+  - name: Groq
+    careers_url: https://groq.com/careers
+    api: https://api.lever.co/v0/postings/groq?mode=json
+    enabled: true
+
+  - name: Cerebras Systems
+    careers_url: https://jobs.ashbyhq.com/cerebras
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: cerebras
+    enabled: true
+
+  - name: SambaNova Systems
+    careers_url: https://sambanova.ai/careers
+    api: https://boards-api.greenhouse.io/v1/boards/sambanovasystems/jobs
+    enabled: true
+
+  - name: Lambda Labs
+    careers_url: https://lambdalabs.com/careers
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: lambda
+    enabled: true
+
+  - name: Together AI
+    careers_url: https://www.together.ai/careers
+    api: https://boards-api.greenhouse.io/v1/boards/togetherai/jobs
+    enabled: true
+
+  - name: Fireworks AI
+    careers_url: https://fireworks.ai/careers
+    api: https://boards-api.greenhouse.io/v1/boards/fireworksai/jobs
+    enabled: true
+
+  - name: Baseten
+    careers_url: https://jobs.ashbyhq.com/baseten
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: baseten
+    enabled: true
+
+  - name: Modal
+    careers_url: https://jobs.ashbyhq.com/modal
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: modal
+    enabled: true
+
+  - name: Replicate
+    careers_url: https://replicate.com/careers
+    enabled: true
+
+  - name: Anyscale
+    careers_url: https://jobs.ashbyhq.com/anyscale
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: anyscale
+    enabled: true
+
+  - name: Hugging Face
+    careers_url: https://apply.workable.com/huggingface/
+    enabled: true
+
+  - name: OctoAI
+    careers_url: https://octo.ai/careers
+    enabled: true
+
+  - name: Lepton AI
+    careers_url: https://www.lepton.ai/careers
+    enabled: true
+
+  - name: Hyperbolic
+    careers_url: https://jobs.ashbyhq.com/hyperbolic
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: hyperbolic
+    enabled: true
+
+  - name: CoreWeave
+    careers_url: https://www.coreweave.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/coreweave/jobs
+    enabled: true
+
+  # ════════════════════════════════════════════
+  # MLOPS, ML TOOLING & DATA PLATFORMS
+  # ════════════════════════════════════════════
+
+  - name: Weights & Biases
+    careers_url: https://wandb.ai/site/careers
+    api: https://api.lever.co/v0/postings/wandb?mode=json
+    enabled: true
+
+  - name: Databricks
+    careers_url: https://www.databricks.com/company/careers
+    api: https://boards-api.greenhouse.io/v1/boards/databricks/jobs
+    enabled: true
+
+  - name: Scale AI
+    careers_url: https://scale.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/scaleai/jobs
+    enabled: true
+
+  - name: Arize AI
+    careers_url: https://arize.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/arizeai/jobs
+    enabled: true
+
+  - name: Prefect
+    careers_url: https://jobs.ashbyhq.com/prefect
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: prefect
+    enabled: true
+
+  - name: Dagster Labs
+    careers_url: https://dagster.io/careers
+    api: https://boards-api.greenhouse.io/v1/boards/dagsterlabs/jobs
+    enabled: true
+
+  - name: Astronomer
+    careers_url: https://jobs.ashbyhq.com/astronomer
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: astronomer
+    enabled: true
+
+  - name: DataRobot
+    careers_url: https://www.datarobot.com/careers
+    enabled: true
+    # note: no working ATS match found as of 2026-07-01 scan
+
+  - name: Snowflake
+    careers_url: https://jobs.ashbyhq.com/snowflake
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: snowflake
+    enabled: true
+
+  - name: Palantir
+    careers_url: https://www.palantir.com/careers
+    api: https://api.lever.co/v0/postings/palantir?mode=json
+    enabled: true
+
+  - name: dbt Labs
+    careers_url: https://www.getdbt.com/dbt-labs/open-roles
+    api: https://boards-api.greenhouse.io/v1/boards/dbtlabsinc/jobs
+    enabled: true
+
+  - name: Fivetran
+    careers_url: https://www.fivetran.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/fivetran/jobs
+    enabled: true
+
+  - name: Airbyte
+    careers_url: https://jobs.ashbyhq.com/airbyte
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: airbyte
+    enabled: true
+
+  - name: Monte Carlo
+    careers_url: https://jobs.ashbyhq.com/montecarlodata
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: montecarlodata
+    enabled: true
+
+  - name: Fiddler AI
+    careers_url: https://www.fiddler.ai/careers
+    enabled: true
+
+  - name: WhyLabs
+    careers_url: https://whylabs.ai/careers
+    enabled: true
+
+  - name: Aporia
+    careers_url: https://www.aporia.com/careers
+    enabled: true
+
+  - name: Great Expectations (Superconductive)
+    careers_url: https://greatexpectations.io/careers
+    enabled: true
+
+  - name: Tecton
+    careers_url: https://www.tecton.ai/careers
+    enabled: true
+    # note: no working ATS match found as of 2026-07-01 scan (careers page redirects, no ashby/lever/greenhouse match)
+
+  - name: Feast (Tecton OSS — skip, same as Tecton)
+    careers_url: https://www.tecton.ai/careers
+    enabled: false
+
+  - name: H2O.ai
+    careers_url: https://h2o.ai/company/careers/
+    enabled: true
+    # note: no working ATS match found as of 2026-07-01 scan; page is JS-rendered, no visible listings via static fetch
+
+  # ════════════════════════════════════════════
+  # VECTOR DATABASES & SEARCH
+  # ════════════════════════════════════════════
+
+  - name: Pinecone
+    careers_url: https://jobs.ashbyhq.com/pinecone
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: pinecone
+    enabled: true
+
+  - name: Weaviate
+    careers_url: https://jobs.ashbyhq.com/weaviate
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: weaviate
+    enabled: true
+
+  - name: Qdrant
+    careers_url: https://qdrant.tech/careers
+    enabled: true
+
+  - name: Zilliz
+    careers_url: https://zilliz.com/careers
+    api: https://api.lever.co/v0/postings/zilliz?mode=json
+    enabled: true
+
+  - name: Chroma
+    careers_url: https://www.trychroma.com/jobs
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: trychroma
+    enabled: true
+
+  - name: LanceDB
+    careers_url: https://lancedb.com/careers
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: lancedb
+    enabled: true
+
+  - name: Marqo
+    careers_url: https://www.marqo.ai/careers
+    enabled: true
+
+  # ════════════════════════════════════════════
+  # AI DEVELOPER TOOLS & CODING
+  # ════════════════════════════════════════════
+
+  - name: Sourcegraph
+    careers_url: https://boards.greenhouse.io/sourcegraph91
+    api: https://boards-api.greenhouse.io/v1/boards/sourcegraph91/jobs
+    enabled: true
+
+  - name: Codeium
+    careers_url: https://codeium.com/careers
+    enabled: true
+    # note: jobs.ashbyhq.com/codeium listing exists (confirmed via WebSearch, e.g. Software Engineer, Operations Engineer) but Ashby GraphQL API returned jobBoard:null as of 2026-07-01 scan; may require different slug casing/board id
+
+  - name: Replit
+    careers_url: https://replit.com/site/careers
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: replit
+    enabled: true
+
+  - name: Cursor
+    careers_url: https://jobs.ashbyhq.com/cursor
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: cursor
+    enabled: true
+
+  - name: Warp
+    careers_url: https://www.warp.dev/careers
+    api: https://boards-api.greenhouse.io/v1/boards/warp/jobs
+    enabled: true
+
+  - name: Tabnine
+    careers_url: https://www.tabnine.com/careers
+    enabled: true
+
+  - name: Vercel
+    careers_url: https://vercel.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/vercel/jobs
+    enabled: true
+
+  - name: Netlify
+    careers_url: https://www.netlify.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/netlify/jobs
+    enabled: true
+
+  - name: Render
+    careers_url: https://jobs.ashbyhq.com/render
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: render
+    enabled: true
+
+  - name: Railway
+    careers_url: https://jobs.ashbyhq.com/railway
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: railway
+    enabled: true
+
+  - name: Neon
+    careers_url: https://jobs.ashbyhq.com/neon
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: neon
+    enabled: true
+
+  - name: Supabase
+    careers_url: https://jobs.ashbyhq.com/supabase
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: supabase
+    enabled: true
+
+  # ════════════════════════════════════════════
+  # AI APPLICATIONS & CONSUMER AI
+  # ════════════════════════════════════════════
+
+  - name: Perplexity AI
+    careers_url: https://jobs.ashbyhq.com/perplexity
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: perplexity
+    enabled: true
+
+  - name: Character AI
+    careers_url: https://jobs.ashbyhq.com/character
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: character
+    enabled: true
+
+  - name: Runway ML
+    careers_url: https://jobs.ashbyhq.com/runway
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: runway
+    enabled: true
+
+  - name: Stability AI
+    careers_url: https://stability.ai/careers
+    api: https://boards-api.greenhouse.io/v1/boards/stabilityai/jobs
+    enabled: true
+
+  - name: Harvey AI
+    careers_url: https://jobs.ashbyhq.com/harvey
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: harvey
+    enabled: true
+
+  - name: Glean
+    careers_url: https://job-boards.greenhouse.io/gleanwork
+    api: https://boards-api.greenhouse.io/v1/boards/gleanwork/jobs
+    enabled: true
+    # note: boards-api 404s directly as of 2026-07-01 scan, but the public job-boards.greenhouse.io/gleanwork page renders correctly via fetch; slug confirmed via WebFetch of the page
+
+  - name: Writer
+    careers_url: https://jobs.ashbyhq.com/writer
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: writer
+    enabled: true
+
+  - name: Typeface
+    careers_url: https://job-boards.greenhouse.io/typeface
+    api: https://boards-api.greenhouse.io/v1/boards/typeface/jobs
+    enabled: true
+
+  - name: Sierra AI
+    careers_url: https://jobs.ashbyhq.com/Sierra
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: Sierra
+    enabled: true
+
+  - name: Jasper
+    careers_url: https://jobs.ashbyhq.com/Jasper%20AI
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: Jasper AI
+    enabled: true
+
+  - name: Copy.ai
+    careers_url: https://www.copy.ai/careers
+    enabled: true
+
+  - name: Notion AI
+    careers_url: https://jobs.ashbyhq.com/notion
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: notion
+    enabled: true
+
+  - name: Dust
+    careers_url: https://dust.tt/jobs
+    enabled: true
+
+  - name: Coframe
+    careers_url: https://coframe.ai/careers
+    enabled: true
+
+  - name: ElevenLabs
+    careers_url: https://elevenlabs.io/careers
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: elevenlabs
+    enabled: true
+
+  - name: Luma AI
+    careers_url: https://lumalabs.ai/careers
+    enabled: true
+
+  - name: Pika Labs
+    careers_url: https://pika.art/careers
+    enabled: true
+
+  - name: Midjourney
+    careers_url: https://www.midjourney.com/careers
+    enabled: true
+
+  # ════════════════════════════════════════════
+  # AGENTIC AI & AUTOMATION
+  # ════════════════════════════════════════════
+
+  - name: LangChain
+    careers_url: https://jobs.ashbyhq.com/langchain
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: langchain
+    enabled: true
+
+  - name: Cognition AI (Devin)
+    careers_url: https://jobs.ashbyhq.com/cognition
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: cognition
+    enabled: true
+
+  - name: SWE-agent / Princeton NLP
+    careers_url: https://nlp.cs.princeton.edu/jobs
+    enabled: false
+
+  - name: Temporal Technologies
+    careers_url: https://temporal.io/careers
+    api: https://api.lever.co/v0/postings/temporal?mode=json
+    enabled: true
+
+  - name: Retool
+    careers_url: https://retool.com/careers
+    enabled: true
+    # note: boards-api.greenhouse.io/v1/boards/retool 404s as of 2026-07-01 scan; retool.com/careers itself shows "0 roles across all locations" -- appears to genuinely have no open reqs right now
+
+  # ════════════════════════════════════════════
+  # BIOINFORMATICS & LIFE SCIENCES AI
+  # ════════════════════════════════════════════
+
+  - name: Recursion Pharmaceuticals
+    careers_url: https://www.recursion.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/recursionpharmaceuticals/jobs
+    enabled: true
+
+  - name: Tempus AI
+    careers_url: https://www.tempus.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/tempus/jobs
+    enabled: true
+    # note: slug confirmed correct (worked via manual curl on 2026-07-01, returning real postings incl. Staff ML Engineer roles) but boards-api intermittently 404s -- appears to be flaky/rate-limited rather than a wrong slug
+
+  - name: Ginkgo Bioworks
+    careers_url: https://www.ginkgobioworks.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/ginkgobioworks/jobs
+    enabled: true
+
+  - name: Insitro
+    careers_url: https://jobs.ashbyhq.com/insitro
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: insitro
+    enabled: true
+    # note: insitro also cross-posts some roles to job-boards.greenhouse.io/insitro, but boards-api 404s directly; Ashby is the reliable API source
+
+  - name: Benchling
+    careers_url: https://jobs.ashbyhq.com/benchling
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: benchling
+    enabled: true
+
+  - name: Illumina
+    careers_url: https://illumina.wd1.myworkdayjobs.com/illumina-careers
+    enabled: true
+
+  - name: 10x Genomics
+    careers_url: https://www.10xgenomics.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/10xgenomics/jobs
+    enabled: true
+
+  - name: Pacific Biosciences (PacBio)
+    careers_url: https://pacbio.wd1.myworkdayjobs.com/PacBio-
+    enabled: true
+    # note: boards-api.greenhouse.io/v1/boards/pacificbiosciences 404s; PacBio actually uses Workday (wd1 and wd12 tenants both seen)
+
+  - name: Twist Bioscience
+    careers_url: https://job-boards.greenhouse.io/twistbioscience
+    api: https://boards-api.greenhouse.io/v1/boards/twistbioscience/jobs
+    enabled: true
+
+  - name: Relay Therapeutics
+    careers_url: https://www.relaytx.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/relaytherapeutics/jobs
+    enabled: true
+
+  - name: Isomorphic Labs
+    careers_url: https://job-boards.greenhouse.io/isomorphiclabs
+    api: https://boards-api.greenhouse.io/v1/boards/isomorphiclabs/jobs
+    enabled: true
+
+  - name: Genesis Therapeutics
+    careers_url: https://www.genesistherapeutics.ai/careers
+    enabled: true
+    # note: no direct ATS match found as of 2026-07-01 scan; postings are cross-listed via a16z/Menlo VC portfolio job boards (jobs.menlovc.com, portfoliojobs.a16z.com) rather than a company-owned ATS
+
+  - name: Chai Discovery
+    careers_url: https://jobs.ashbyhq.com/chaidiscovery
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: chaidiscovery
+    enabled: true
+
+  - name: Exscientia
+    careers_url: https://apply.workable.com/exscientia/
+    enabled: true
+
+  - name: Altos Labs
+    careers_url: https://www.altoslabs.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/altoslabs/jobs
+    enabled: true
+
+  - name: Encoded Therapeutics
+    careers_url: https://apply.workable.com/encoded/
+    enabled: true
+
+  - name: Seer Bio
+    careers_url: https://seer.bio/careers/
+    api: https://boards-api.greenhouse.io/v1/boards/seer/jobs
+    enabled: true
+
+  # ════════════════════════════════════════════
+  # BIG TECH AI DIVISIONS
+  # ════════════════════════════════════════════
+
+  - name: Google DeepMind
+    careers_url: https://job-boards.greenhouse.io/deepmind
+    api: https://boards-api.greenhouse.io/v1/boards/deepmind/jobs
+    enabled: true
+
+  - name: Google Cloud AI / Vertex
+    careers_url: https://careers.google.com
+    scan_query: '"ML Engineer" OR "AI Engineer" OR "Research Engineer" site:careers.google.com'
+    enabled: true
+
+  - name: Meta AI (FAIR)
+    careers_url: https://www.metacareers.com
+    scan_query: '"ML Engineer" OR "AI Engineer" OR "Research Scientist" site:metacareers.com'
+    enabled: true
+
+  - name: Microsoft Azure AI
+    careers_url: https://careers.microsoft.com
+    scan_query: '"ML Engineer" OR "AI Engineer" OR "Machine Learning" site:careers.microsoft.com'
+    enabled: true
+
+  - name: Amazon AWS AI
+    careers_url: https://www.amazon.jobs/en/teams/amazon-web-services
+    enabled: true
+
+  - name: Apple Machine Learning
+    careers_url: https://jobs.apple.com/en-us/search?team=machine-learning-and-ai-MLAI
+    enabled: true
+
+  - name: Salesforce AI (Einstein/Agentforce)
+    careers_url: https://careers.salesforce.com
+    enabled: true
+
+  - name: Adobe AI (Firefly / Sensei)
+    careers_url: https://careers.adobe.com
+    enabled: true
+
+  - name: IBM Research AI
+    careers_url: https://research.ibm.com/careers
+    enabled: true
+
+  # ════════════════════════════════════════════
+  # CLOUD & DEVELOPER INFRASTRUCTURE
+  # ════════════════════════════════════════════
+
+  - name: Cloudflare
+    careers_url: https://www.cloudflare.com/careers/jobs
+    api: https://boards-api.greenhouse.io/v1/boards/cloudflare/jobs
+    enabled: true
+    # note: scan.mjs reported "This operation was aborted" (timeout) on 2026-07-01; API confirmed working via manual curl -- likely a transient timeout, not a broken slug
+
+  - name: Pulumi
+    careers_url: https://job-boards.greenhouse.io/pulumicorporation
+    api: https://boards-api.greenhouse.io/v1/boards/pulumicorporation/jobs
+    enabled: true
+
+  - name: Oxide Computer
+    careers_url: https://oxide.computer/careers
+    enabled: true
+
+  - name: Temporal Technologies
+    careers_url: https://temporal.io/careers
+    api: https://api.lever.co/v0/postings/temporal?mode=json
+    enabled: false  # listed above
+
+  # ════════════════════════════════════════════
+  # AI RESEARCH INSTITUTES
+  # ════════════════════════════════════════════
+
+  - name: Allen Institute for AI (AI2)
+    careers_url: https://job-boards.greenhouse.io/thealleninstitute
+    api: https://boards-api.greenhouse.io/v1/boards/thealleninstitute/jobs
+    enabled: true
+
+  - name: Toyota Research Institute
+    careers_url: https://www.tri.global/careers
+    api: https://api.lever.co/v0/postings/tri?mode=json
+    enabled: true
+
+  - name: Salesforce Research
+    careers_url: https://careers.salesforce.com
+    enabled: false  # covered by Salesforce above
+
+  # ════════════════════════════════════════════
+  # FINTECH / VERTICAL AI (ML-heavy)
+  # ════════════════════════════════════════════
+
+  - name: Stripe
+    careers_url: https://stripe.com/jobs
+    api: https://boards-api.greenhouse.io/v1/boards/stripe/jobs
+    enabled: true
+
+  - name: Brex
+    careers_url: https://www.brex.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/brex/jobs
+    enabled: true
+
+  - name: Rippling
+    careers_url: https://www.rippling.com/careers
+    enabled: true
+    # note: no working ATS match found as of 2026-07-01 scan; careers page blocked static fetch (403), no ashby/lever/greenhouse slug match
+
+  - name: Plaid
+    careers_url: https://jobs.ashbyhq.com/plaid
+    api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
+    api_provider: ashby
+    api_slug: plaid
+    enabled: true
+
+  - name: Robinhood
+    careers_url: https://careers.robinhood.com
+    api: https://boards-api.greenhouse.io/v1/boards/robinhood/jobs
+    enabled: true
+
+  - name: Chime
+    careers_url: https://www.chime.com/careers
+    api: https://boards-api.greenhouse.io/v1/boards/chime/jobs
+    enabled: true
