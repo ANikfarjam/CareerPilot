@@ -1,4 +1,4 @@
-from sqlalchemy import String, DateTime, Integer, Column, ForeignKey
+from sqlalchemy import String, DateTime, Integer, Column, ForeignKey, JSON
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.types import Uuid
@@ -30,6 +30,7 @@ class JobBoard(Base):
     company_name = Column(String, nullable=False)
     position = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    post_id = Column(String, nullable=True)
     link = Column(String, nullable=True)
     update_at = Column(DateTime(timezone=True), nullable=False,
                        default=lambda: datetime.datetime.now(datetime.UTC),
@@ -37,3 +38,8 @@ class JobBoard(Base):
     job_type = Column(SAEnum(JobType,values_callable=lambda x: [e.value for e in x]), nullable=False, default=JobType.unknown)
     compatibility = Column(Integer, nullable=False)
     action = Column(SAEnum(Action,values_callable=lambda x: [e.value for e in x]), nullable=False, default=Action.searched)
+    # From qualification_check, so analytics can find the skills you're missing.
+    requirements = Column(JSON, nullable=True)  # [{"skill", "level": "required" | "preferred"}, ...]
+    matched = Column(JSON, nullable=True)  # requirement skills you meet
+    missing = Column(JSON, nullable=True)  # requirement skills you lack
+    reasoning = Column(String, nullable=True)  # why the model gave this compatibility score

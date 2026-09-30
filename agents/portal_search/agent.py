@@ -49,7 +49,7 @@ from agents.sandbox import SandboxConfig, SandboxSession
 PORTALS_FILE = Path(__file__).resolve().parents[1] / "utils" / "portals.yml"
 MAX_STEPS = 12  # model turns per portal
 
-COLUMNS = ["company", "position", "descrition", "link", "jobType"]
+COLUMNS = ["company", "position", "descrition", "post_id", "link", "jobType"]
 JOB_TYPES = ("onsite", "remote", "hybrid", "unknown")
 
 
@@ -90,6 +90,8 @@ the task, with exactly these columns: {", ".join(COLUMNS)}
   position - job title
   descrition - full job description as plain text (HTML tags stripped); it is
              used to extract the job's requirements, so don't leave it empty
+  post_id  - the portal's own id for the posting (e.g. Greenhouse/Lever/Ashby job
+             id); leave it empty if the portal has none
   link     - URL of the posting
   jobType  - one of: {", ".join(JOB_TYPES)} (infer from location/workplace fields;
              "unknown" if the posting doesn't say)

@@ -43,9 +43,13 @@ def positions_to_jobs(scored: pd.DataFrame) -> tuple[list[dict], list[dict]]:
                 "company_name": _text(row.get("company")) or "unknown",
                 "position": _text(row.get("position")) or "unknown",
                 "description": _text(row.get("descrition")) or None,
+                "post_id": _text(row.get("post_id")) or None,
                 "link": link,
                 "job_type": job_type if job_type in JOB_TYPES else "unknown",
                 "compatibility": int(row["score"]),
+                **{c: row.get(c) if isinstance(row.get(c), list) else None  # CSV-loaded rows have str/NaN
+                   for c in ("requirements", "matched", "missing")},
+                "reasoning": _text(row.get("reasoning")) or None,
             }
     return list(jobs.values()), skipped
 

@@ -11,6 +11,7 @@ CareerAI also tracks your applications, so you always know which jobs you've alr
 - **Multi-portal search**: agents search across job-board APIs in a single run.
 - **Qualification matching**: key requirements are extracted from each posting and compared to your skills and experience.
 - **Application tracking**: keep a record of which jobs you've applied to.
+- **Resume builder**: builds a resume tailored to a saved job from your background, and suggests side projects that close its skill gaps.
 - **Runs locally**: the LLM runs on your own hardware, so your data stays on your machine.
 
 ## Requirements
@@ -70,4 +71,4 @@ just stop_db
 
 ## Upcoming Features
 
-- **Resume and interview coach**: an agent that helps you build your resume and practice with mock interviews.
+- **Interview coach**: an agent that helps you practice with mock interviews.

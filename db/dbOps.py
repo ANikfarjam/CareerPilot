@@ -120,9 +120,14 @@ def upsert_jobs(jobs: list[dict]):
                 "company_name": stmt.excluded.company_name,
                 "position": stmt.excluded.position,
                 "description": stmt.excluded.description,
+                "post_id": stmt.excluded.post_id,
                 "link": stmt.excluded.link,
                 "job_type": stmt.excluded.job_type,
                 "compatibility": stmt.excluded.compatibility,
+                "requirements": stmt.excluded.requirements,
+                "matched": stmt.excluded.matched,
+                "missing": stmt.excluded.missing,
+                "reasoning": stmt.excluded.reasoning,
                 "update_at": datetime.datetime.now(datetime.UTC),
             },
         )
@@ -132,6 +137,24 @@ def upsert_jobs(jobs: list[dict]):
     except Exception:
         session.rollback()
         raise
+    finally:
+        session.close()
+        conn.close()
+
+
+def all_jobs(with_description: bool = False):
+    """
+        Fetches every job, for analytics over the whole board.
+        Descriptions are left out unless with_description (they are most of the row size).
+        @return: list of dicts with the JobBoard columns; enums as their values
+    """
+    conn, session = db.connect()
+    try:
+        columns = [c for c in models.JobBoard.__table__.columns
+                   if with_description or c.name != "description"]
+        rows = session.execute(select(*columns)).mappings().all()
+        return [{k: v.value if isinstance(v, (models.Action, models.JobType)) else v
+                 for k, v in row.items()} for row in rows]
     finally:
         session.close()
         conn.close()
