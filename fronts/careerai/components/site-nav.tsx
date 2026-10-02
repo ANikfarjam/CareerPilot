@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, Search } from "lucide-react"
+import { BookOpen, ChartColumn, FileText, Search } from "lucide-react"
 
 import logo from "@/assests/Logo.jpeg"
 import {
@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils"
 // One entry per route under pages/; add new pages here to show them in the nav.
 const NAV_ITEMS = [
   { href: "/search/page", label: "Search", icon: Search },
+  { href: "/analytics/page", label: "Analytics", icon: ChartColumn },
+  { href: "/resume_builder/page", label: "Resume", icon: FileText },
   { href: "/docs/page", label: "Docs", icon: BookOpen },
 ]
 
@@ -48,6 +50,7 @@ export function SiteNav() {
                 <NavigationMenuItem key={href}>
                   <NavigationMenuLink
                     active={isActive}
+                    aria-label={label}
                     render={<Link href={href} />}
                     className={cn(
                       navigationMenuTriggerStyle(),
@@ -56,7 +59,8 @@ export function SiteNav() {
                     )}
                   >
                     <Icon />
-                    {label}
+                    {/* Icons only on phones so the nav fits */}
+                    <span className="hidden sm:inline">{label}</span>
                   </NavigationMenuLink>
                 </NavigationMenuItem>
               )

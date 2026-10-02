@@ -211,3 +211,128 @@ def list_jobs(action: str = None, job_type: str = None, min_compatibility: int =
     finally:
         session.close()
         conn.close()
+
+
+# ---------- resume drafts (agents/resume_builder) ----------
+
+def _now_iso():
+    return datetime.datetime.now(datetime.UTC).isoformat()
+
+
+def _draft_dict(draft: models.ResumeDraft, job: models.JobBoard = None):
+    return {
+        "id": draft.id,
+        "job_id": draft.job_id,
+        "company_name": job.company_name if job else None,
+        "position": job.position if job else None,
+        "resume": draft.resume,
+        "side_projects": draft.side_projects,
+        "messages": list(draft.messages or []),
+        "versions": list(draft.versions or []),
+        "created_at": draft.created_at,
+        "update_at": draft.update_at,
+    }
+
+
+def create_draft(job_id: UUID, resume: str, side_projects: str):
+    """
+        Saves a freshly built resume and side-project ideas for a job.
+        @return: the new draft as a dict (see get_draft)
+    """
+    conn, session = db.connect()
+    try:
+        draft = models.ResumeDraft(job_id=job_id, resume=resume, side_projects=side_projects,
+                                   messages=[], versions=[])
+        session.add(draft)
+        session.commit()
+        return _draft_dict(draft, session.get(models.JobBoard, job_id))
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+        conn.close()
+
+
+def get_draft(id: UUID):
+    """
+        Fetches one resume draft with its job's company and position.
+        @return: dict with the ResumeDraft columns plus company_name/position, or None if not found
+    """
+    conn, session = db.connect()
+    try:
+        draft = session.get(models.ResumeDraft, id)
+        if draft is None:
+            return None
+        return _draft_dict(draft, session.get(models.JobBoard, draft.job_id))
+    finally:
+        session.close()
+        conn.close()
+
+
+def list_drafts(job_id: UUID = None):
+    """
+        Lists resume drafts, most recently edited first; only one job's when job_id is given.
+        @return: list of draft dicts (see get_draft)
+    """
+    conn, session = db.connect()
+    try:
+        stmt = (select(models.ResumeDraft, models.JobBoard)
+                .join(models.JobBoard, models.JobBoard.id == models.ResumeDraft.job_id)
+                .order_by(models.ResumeDraft.update_at.desc()))
+        if job_id is not None:
+            stmt = stmt.where(models.ResumeDraft.job_id == job_id)
+        return [_draft_dict(draft, job) for draft, job in session.execute(stmt).all()]
+    finally:
+        session.close()
+        conn.close()
+
+
+def update_draft(id: UUID, resume: str = None, side_projects: str = None, note: str = "",
+                 messages: list[dict] = None):
+    """
+        Edits a draft. If resume or side_projects change, the old content is first pushed
+        onto versions (with note saying what changed it). messages are appended to the chat.
+        @return: the updated draft dict, or None if not found
+    """
+    conn, session = db.connect()
+    try:
+        draft = session.get(models.ResumeDraft, id)
+        if draft is None:
+            return None
+        changed = (resume is not None and resume != draft.resume) or \
+                  (side_projects is not None and side_projects != draft.side_projects)
+        if changed:
+            # Reassign the JSON lists: in-place mutation isn't tracked.
+            draft.versions = list(draft.versions or []) + [{
+                "resume": draft.resume, "side_projects": draft.side_projects, "note": note, "at": _now_iso(),
+            }]
+            if resume is not None:
+                draft.resume = resume
+            if side_projects is not None:
+                draft.side_projects = side_projects
+        if messages:
+            draft.messages = list(draft.messages or []) + [{**m, "at": m.get("at") or _now_iso()} for m in messages]
+        if changed or messages:
+            draft.update_at = datetime.datetime.now(datetime.UTC)
+        session.commit()
+        return _draft_dict(draft, session.get(models.JobBoard, draft.job_id))
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+        conn.close()
+
+
+def revert_draft(id: UUID, version: int):
+    """
+        Restores versions[version] of a draft; the current content becomes a new version first.
+        @return: the updated draft dict, or None if not found; IndexError if no such version
+    """
+    draft = get_draft(id)
+    if draft is None:
+        return None
+    old = draft["versions"][version]
+    return update_draft(id, resume=old["resume"], side_projects=old["side_projects"],
+                        note=f"before revert to version {version}")

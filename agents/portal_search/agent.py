@@ -58,6 +58,12 @@ def load_portals(path: Path = PORTALS_FILE) -> list[dict]:
     return [c for c in data.get("tracked_companies", []) if c.get("enabled", True)]
 
 
+def load_target_positions(path: Path = PORTALS_FILE) -> list[str]:
+    """The title_filter's positive keywords: the positions the search targets."""
+    data = yaml.safe_load(path.read_text())
+    return list((data.get("title_filter") or {}).get("positive") or [])
+
+
 # ─────────────────────────────────────────────────────────
 # PROMPTS
 # ─────────────────────────────────────────────────────────

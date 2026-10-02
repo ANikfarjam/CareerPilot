@@ -7,13 +7,18 @@ import functools
 import threading
 
 from db.models import Action, JobBoard
+from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
+
+from db import dbOps
 from apis.schemas import (AgentRun, AgentRunRequest, AgentRunSummary, AnalyticsReport, AnalyticsRun,
-                          AnalyticsRunRequest, ResumeReport, RunStatus)
+                          AnalyticsRunRequest, ResumeDraftOut, ResumeDraftSummary, ResumeDraftUpdate,
+                          ResumeReport, RunStatus)
 from agents.analytics.agent import build_tables, load_jobs
-from agents.resume_builder.agent import run_resume_builder
+from agents.resume_builder.agent import load_job, run_resume_builder
+from agents.resume_builder.chat import stream_chat
 from agents.graph.analytic_graph import build_analytic_graph
 from agents.graph.graph import build_graph
-from agents.portal_search.agent import load_portals
+from agents.portal_search.agent import load_portals, load_target_positions
 from agents.sandbox import SandboxConfig
 
 AGENTS_ROUTER: typing.Final = fastapi.APIRouter(prefix="/agents", tags=["agents"])
@@ -176,7 +181,8 @@ def get_analytics_run(run_id: uuid.UUID):
 def build_resume(job_id: uuid.UUID):
     """Builds a Markdown resume tailored to a saved job from the user's knowledge base and
     projects, plus side-project ideas for the skills the job asks for that the user lacks.
-    Takes a minute or two (two LLM calls); nothing is saved."""
+    Takes a minute or two (two LLM calls). The result is saved as a new resume draft
+    (draft_id) that GET /agents/resume/drafts/{draft_id} and the resume chat work on."""
     # The resume shares the local LLM with the search runs.
     if not RUN_LOCK.acquire(blocking=False):
         raise fastapi.HTTPException(status_code=409, detail="an agent run is using the model; try again later")
@@ -189,7 +195,9 @@ def build_resume(job_id: uuid.UUID):
     finally:
         RUN_LOCK.release()
     job = report["job"]
+    draft = dbOps.create_draft(job["id"], report["resume"], report["side_projects"])
     return ResumeReport(
+        draft_id=draft["id"],
         job_id=job["id"],
         company_name=job["company_name"],
         position=job["position"],
@@ -199,7 +207,114 @@ def build_resume(job_id: uuid.UUID):
     )
 
 
+
+def _draft_or_404(draft_id: uuid.UUID) -> dict:
+    draft = dbOps.get_draft(draft_id)
+    if draft is None:
+        raise fastapi.HTTPException(status_code=404, detail="resume draft not found")
+    return draft
+
+
+@AGENTS_ROUTER.get("/resume/drafts", response_model=list[ResumeDraftSummary])
+def list_resume_drafts(job_id: typing.Optional[uuid.UUID] = None):
+    """Lists saved resume drafts, most recently edited first; only one job's when job_id is given."""
+    return dbOps.list_drafts(job_id)
+
+
+@AGENTS_ROUTER.get("/resume/drafts/{draft_id}", response_model=ResumeDraftOut)
+def get_resume_draft(draft_id: uuid.UUID):
+    """One resume draft: its current resume and side projects, chat history and older versions."""
+    return _draft_or_404(draft_id)
+
+
+@AGENTS_ROUTER.put("/resume/drafts/{draft_id}", response_model=ResumeDraftOut)
+def update_resume_draft(draft_id: uuid.UUID, body: ResumeDraftUpdate):
+    """Saves a manual edit of a draft's resume and/or side projects; the old content becomes a version."""
+    draft = dbOps.update_draft(draft_id, resume=body.resume, side_projects=body.side_projects, note="manual edit")
+    if draft is None:
+        raise fastapi.HTTPException(status_code=404, detail="resume draft not found")
+    return draft
+
+
+@AGENTS_ROUTER.post("/resume/drafts/{draft_id}/revert/{version}", response_model=ResumeDraftOut)
+def revert_resume_draft(draft_id: uuid.UUID, version: int):
+    """Restores versions[version] of a draft; the current content is kept as a new version first."""
+    if version < 0 or version >= len(_draft_or_404(draft_id)["versions"]):
+        raise fastapi.HTTPException(status_code=404, detail="no such version")
+    return dbOps.revert_draft(draft_id, version)
+
+
+def _chat_model():
+    from agents.utils.langchainConfig import chat_model  # loads the local LLM on first use
+    return chat_model
+
+
+async def _chat_turn(ws: fastapi.WebSocket, draft: dict, job: dict, content: str) -> dict:
+    """Streams one reply's events to the socket, then saves the messages and doc edits.
+    Returns the updated draft dict. The caller holds RUN_LOCK."""
+    model = await run_in_threadpool(_chat_model)
+    result = None
+    async for event in iterate_in_threadpool(stream_chat(model, draft, job, content)):
+        if event["type"] == "result":
+            result = event
+        else:
+            await ws.send_json(event)
+    note = f"chat: {content[:200]}"
+    return await run_in_threadpool(
+        dbOps.update_draft, draft["id"], resume=result.get("resume"), side_projects=result.get("side_projects"),
+        note=note, messages=[{"role": "user", "content": content},
+                             {"role": "assistant", "content": result["reply"]}])
+
+
+@AGENTS_ROUTER.websocket("/resume/drafts/{draft_id}/chat")
+async def resume_chat(ws: fastapi.WebSocket, draft_id: uuid.UUID):
+    """Chat that edits a resume draft, streamed over a websocket.
+
+    Client sends {"type": "message", "content": "<request>"}. Server replies with
+    {"type": "status", "state": "thinking" | "writing"}, then
+    {"type": "token", "target": "chat" | "resume" | "side_projects", "text"} as the reply streams,
+    then {"type": "done", "draft": ResumeDraftOut} once the messages and edits are saved.
+    Errors arrive as {"type": "error", "detail"} and leave the socket open, e.g. "model busy"
+    while another agent run is using the local LLM. Closes with 4404 if the draft doesn't exist."""
+    await ws.accept()
+    draft = await run_in_threadpool(dbOps.get_draft, draft_id)
+    if draft is None:
+        await ws.close(code=4404, reason="resume draft not found")
+        return
+    job = await run_in_threadpool(load_job, draft["job_id"])
+    try:
+        while True:
+            data = await ws.receive_json()
+            content = str(data.get("content") or "").strip() if isinstance(data, dict) else ""
+            if not (isinstance(data, dict) and data.get("type") == "message" and content):
+                await ws.send_json({"type": "error", "detail": 'expected {"type": "message", "content": "..."}'})
+                continue
+            # Shares the local LLM with the search, analytics and resume runs.
+            if not RUN_LOCK.acquire(blocking=False):
+                await ws.send_json({"type": "error", "detail": "model busy: an agent run is using it; try again later"})
+                continue
+            try:
+                draft = await _chat_turn(ws, draft, job, content)
+            except fastapi.WebSocketDisconnect:
+                raise
+            except Exception as e:
+                logger.exception("resume chat on draft %s failed", draft_id)
+                await ws.send_json({"type": "error", "detail": str(e)})
+                continue
+            finally:
+                RUN_LOCK.release()
+            await ws.send_json({"type": "done", "draft": ResumeDraftOut(**draft).model_dump(mode="json")})
+    except fastapi.WebSocketDisconnect:
+        pass
+
+
 @AGENTS_ROUTER.get("/portals", response_model=list[str])
 def list_portals():
     """Names of the enabled portals in portals.yml, for the frontend's portal picker."""
     return [p["name"] for p in load_portals()]
+
+
+@AGENTS_ROUTER.get("/portals/positions", response_model=list[str])
+def list_target_positions():
+    """Positive title_filter keywords in portals.yml: the positions the portal search targets."""
+    return load_target_positions()

@@ -43,3 +43,19 @@ class JobBoard(Base):
     matched = Column(JSON, nullable=True)  # requirement skills you meet
     missing = Column(JSON, nullable=True)  # requirement skills you lack
     reasoning = Column(String, nullable=True)  # why the model gave this compatibility score
+
+class ResumeDraft(Base):
+    """A resume_builder result for one job, edited over time by the resume chat."""
+    __tablename__="resume_drafts"
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    job_id = Column(Uuid, ForeignKey("job_board_table.id", ondelete="CASCADE"), nullable=False, index=True)
+    resume = Column(String, nullable=False)  # Markdown
+    side_projects = Column(String, nullable=False)  # Markdown
+    messages = Column(JSON, nullable=False, default=list)  # [{"role": "user" | "assistant", "content", "at"}, ...]
+    # Snapshot taken before each edit, oldest first: [{"resume", "side_projects", "note", "at"}, ...]
+    versions = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), nullable=False,
+                        default=lambda: datetime.datetime.now(datetime.UTC))
+    update_at = Column(DateTime(timezone=True), nullable=False,
+                       default=lambda: datetime.datetime.now(datetime.UTC),
+                       onupdate=lambda: datetime.datetime.now(datetime.UTC))

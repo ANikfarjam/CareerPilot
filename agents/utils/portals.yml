@@ -44,6 +44,8 @@ title_filter:
     - "full stack ai"
     - "agentic"
     - "ai agent"
+    - "software engineer I"
+    - "jr software engineer"
   negative:
     - "intern"
     - "director"

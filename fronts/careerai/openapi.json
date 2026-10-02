@@ -1,0 +1,2102 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CareerAI API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/agents/runs": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "List Runs",
+        "description": "Lists the runs started since the API came up, newest first.",
+        "operationId": "list_runs",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentRun"
+                  },
+                  "type": "array",
+                  "title": "Response List Runs"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Start Run",
+        "description": "Spins off the agents: searches the portals, scores the positions and saves them to the DB.\nReturns immediately with a run id; poll GET /agents/runs/{run_id} for the result.",
+        "operationId": "start_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Get Run",
+        "description": "Status of one run; summary (positions found, scored, ingested, errors) is set once it finishes.",
+        "operationId": "get_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/analytics": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Get Analytics",
+        "description": "Chart tables over every saved job (status counts, funnel, work type, company,\ncompatibility, weekly activity). Fast: host pandas only, no LLM or sandbox.\nFor near-miss jobs, skill gaps, the written analysis and side projects, start\nPOST /agents/analytics/runs.",
+        "operationId": "get_analytics",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/analytics/runs": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Start Analytics Run",
+        "description": "Spins off the analytics agent: it runs code in a sandbox to find the near-miss jobs\nand skill gaps, writes the analysis and recommends side projects. Takes a few minutes.\nReturns immediately with a run id; poll GET /agents/analytics/runs/{run_id} for the report.",
+        "operationId": "start_analytics_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/analytics/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Get Analytics Run",
+        "description": "Status of one analytics run; report is set once it succeeds.",
+        "operationId": "get_analytics_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/resume/{job_id}": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Build Resume",
+        "description": "Builds a Markdown resume tailored to a saved job from the user's knowledge base and\nprojects, plus side-project ideas for the skills the job asks for that the user lacks.\nTakes a minute or two (two LLM calls). The result is saved as a new resume draft\n(draft_id) that GET /agents/resume/drafts/{draft_id} and the resume chat work on.",
+        "operationId": "build_resume",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/resume/drafts": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "List Resume Drafts",
+        "description": "Lists saved resume drafts, most recently edited first; only one job's when job_id is given.",
+        "operationId": "list_resume_drafts",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResumeDraftSummary"
+                  },
+                  "title": "Response List Resume Drafts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/resume/drafts/{draft_id}": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Get Resume Draft",
+        "description": "One resume draft: its current resume and side projects, chat history and older versions.",
+        "operationId": "get_resume_draft",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeDraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Update Resume Draft",
+        "description": "Saves a manual edit of a draft's resume and/or side projects; the old content becomes a version.",
+        "operationId": "update_resume_draft",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeDraftUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeDraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/resume/drafts/{draft_id}/revert/{version}": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Revert Resume Draft",
+        "description": "Restores versions[version] of a draft; the current content is kept as a new version first.",
+        "operationId": "revert_resume_draft",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Draft Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeDraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/portals": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "List Portals",
+        "description": "Names of the enabled portals in portals.yml, for the frontend's portal picker.",
+        "operationId": "list_portals",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response List Portals"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/portals/positions": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "List Target Positions",
+        "description": "Positive title_filter keywords in portals.yml: the positions the portal search targets.",
+        "operationId": "list_target_positions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response List Target Positions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "List Jobs",
+        "description": "Job board for the frontend: filters, sorts and paginates the jobs the agents saved.\ne.g. GET /jobs?action=searched&min_compatibility=70&sort_by=compatibility",
+        "operationId": "list_jobs",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Action"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "name": "job_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/JobType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job Type"
+            }
+          },
+          {
+            "name": "min_compatibility",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Compatibility"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "matches company, position or description",
+              "title": "Search"
+            },
+            "description": "matches company, position or description"
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "update_at",
+                "compatibility",
+                "company_name",
+                "position"
+              ],
+              "type": "string",
+              "default": "update_at",
+              "title": "Sort By"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string",
+              "default": "desc",
+              "title": "Order"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Job",
+        "description": "One job with its full description, for the job detail page.",
+        "operationId": "get_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/action": {
+      "patch": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Update Job Action",
+        "description": "Sets the application status of a job (applied, interview_scheduled, ...).\nRe-running the agents keeps this status (see dbOps.upsert_jobs).",
+        "operationId": "update_job_action",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobActionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Liveness check for the frontend / docker.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Action": {
+        "type": "string",
+        "enum": [
+          "searched",
+          "applied",
+          "drop",
+          "interview_scheduled",
+          "interview_inprogress",
+          "interview_done",
+          "denied"
+        ],
+        "title": "Action"
+      },
+      "ActionRow": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "count"
+        ],
+        "title": "ActionRow",
+        "description": "Row of AnalyticsTables.by_action: how many jobs have each status, zeros included."
+      },
+      "AgentRun": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "portals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Portals"
+          },
+          "sandbox": {
+            "type": "string",
+            "title": "Sandbox"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentRunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "portals",
+          "sandbox",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "summary",
+          "error"
+        ],
+        "title": "AgentRun",
+        "description": "Returned by POST /agents/runs, GET /agents/runs and GET /agents/runs/{run_id};\nthe frontend polls it until status is succeeded or failed."
+      },
+      "AgentRunRequest": {
+        "properties": {
+          "portals": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portals"
+          },
+          "sandbox": {
+            "type": "string",
+            "enum": [
+              "sandbox",
+              "sandbox-cpu"
+            ],
+            "title": "Sandbox",
+            "default": "sandbox"
+          }
+        },
+        "type": "object",
+        "title": "AgentRunRequest",
+        "description": "Body of POST /agents/runs: which portals to search and which sandbox to use."
+      },
+      "AgentRunSummary": {
+        "properties": {
+          "positions": {
+            "type": "integer",
+            "title": "Positions",
+            "default": 0
+          },
+          "scored": {
+            "type": "integer",
+            "title": "Scored",
+            "default": 0
+          },
+          "ingested": {
+            "type": "integer",
+            "title": "Ingested",
+            "default": 0
+          },
+          "portal_errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Portal Errors",
+            "default": []
+          },
+          "qualification_errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Qualification Errors",
+            "default": []
+          },
+          "ingestion_errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Ingestion Errors",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "positions",
+          "scored",
+          "ingested",
+          "portal_errors",
+          "qualification_errors",
+          "ingestion_errors"
+        ],
+        "title": "AgentRunSummary",
+        "description": "What a finished run did: portal_search -> qualification_check -> db_ingestion."
+      },
+      "AnalyticsReport": {
+        "properties": {
+          "total_jobs": {
+            "type": "integer",
+            "title": "Total Jobs"
+          },
+          "tables": {
+            "$ref": "#/components/schemas/AnalyticsTables"
+          },
+          "near_miss_jobs": {
+            "items": {
+              "$ref": "#/components/schemas/NearMissJob"
+            },
+            "type": "array",
+            "title": "Near Miss Jobs",
+            "default": []
+          },
+          "skill_gaps": {
+            "items": {
+              "$ref": "#/components/schemas/SkillGap"
+            },
+            "type": "array",
+            "title": "Skill Gaps",
+            "default": []
+          },
+          "analysis": {
+            "type": "string",
+            "title": "Analysis",
+            "default": ""
+          },
+          "conclusion": {
+            "type": "string",
+            "title": "Conclusion",
+            "default": ""
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/SideProject"
+            },
+            "type": "array",
+            "title": "Projects",
+            "default": []
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors",
+            "default": []
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_jobs",
+          "tables",
+          "near_miss_jobs",
+          "skill_gaps",
+          "analysis",
+          "conclusion",
+          "projects",
+          "errors",
+          "generated_at"
+        ],
+        "title": "AnalyticsReport",
+        "description": "Analytics over every saved job. GET /agents/analytics returns only `tables` (host\npandas, fast); a finished analytics run (agents/graph/analytic_graph.py) fills the rest.\nThe tables are built by agents/analytics/agent.py build_tables()."
+      },
+      "AnalyticsRun": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "sandbox": {
+            "type": "string",
+            "title": "Sandbox"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalyticsReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "sandbox",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "report",
+          "error"
+        ],
+        "title": "AnalyticsRun",
+        "description": "Returned by POST /agents/analytics/runs and GET /agents/analytics/runs/{run_id};\nthe frontend polls it until status is succeeded or failed, then reads `report`."
+      },
+      "AnalyticsRunRequest": {
+        "properties": {
+          "sandbox": {
+            "type": "string",
+            "enum": [
+              "sandbox",
+              "sandbox-cpu"
+            ],
+            "title": "Sandbox",
+            "default": "sandbox"
+          }
+        },
+        "type": "object",
+        "title": "AnalyticsRunRequest",
+        "description": "Body of POST /agents/analytics/runs: which sandbox the analytics agent runs its code in.\nIt only needs pandas, so sandbox-cpu is enough."
+      },
+      "AnalyticsTables": {
+        "properties": {
+          "by_action": {
+            "items": {
+              "$ref": "#/components/schemas/ActionRow"
+            },
+            "type": "array",
+            "title": "By Action"
+          },
+          "funnel": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelRow"
+            },
+            "type": "array",
+            "title": "Funnel"
+          },
+          "by_job_type": {
+            "items": {
+              "$ref": "#/components/schemas/JobTypeRow"
+            },
+            "type": "array",
+            "title": "By Job Type"
+          },
+          "by_company": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyRow"
+            },
+            "type": "array",
+            "title": "By Company"
+          },
+          "compatibility": {
+            "items": {
+              "$ref": "#/components/schemas/CompatibilityRow"
+            },
+            "type": "array",
+            "title": "Compatibility"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyRow"
+            },
+            "type": "array",
+            "title": "Weekly"
+          }
+        },
+        "type": "object",
+        "required": [
+          "by_action",
+          "funnel",
+          "by_job_type",
+          "by_company",
+          "compatibility",
+          "weekly"
+        ],
+        "title": "AnalyticsTables",
+        "description": "The chart tables of AnalyticsReport, built by agents/analytics/agent.py build_tables()."
+      },
+      "ChatMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content",
+          "at"
+        ],
+        "title": "ChatMessage",
+        "description": "One message of a resume draft's chat; assistant messages hold only the reply text,\nthe doc edits they made are in ResumeDraftOut.versions."
+      },
+      "CompanyRow": {
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "found": {
+            "type": "integer",
+            "title": "Found"
+          },
+          "applied": {
+            "type": "integer",
+            "title": "Applied"
+          },
+          "interview": {
+            "type": "integer",
+            "title": "Interview"
+          },
+          "avg_compatibility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Compatibility"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_name",
+          "found",
+          "applied",
+          "interview",
+          "avg_compatibility"
+        ],
+        "title": "CompanyRow",
+        "description": "Row of AnalyticsTables.by_company, most found first."
+      },
+      "CompatibilityRow": {
+        "properties": {
+          "compatibility": {
+            "type": "integer",
+            "title": "Compatibility"
+          },
+          "found": {
+            "type": "integer",
+            "title": "Found"
+          },
+          "applied": {
+            "type": "integer",
+            "title": "Applied"
+          }
+        },
+        "type": "object",
+        "required": [
+          "compatibility",
+          "found",
+          "applied"
+        ],
+        "title": "CompatibilityRow",
+        "description": "Row of AnalyticsTables.compatibility: the 0-10 compatibility score histogram."
+      },
+      "DraftVersion": {
+        "properties": {
+          "resume": {
+            "type": "string",
+            "title": "Resume"
+          },
+          "side_projects": {
+            "type": "string",
+            "title": "Side Projects"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resume",
+          "side_projects",
+          "note",
+          "at"
+        ],
+        "title": "DraftVersion",
+        "description": "A resume draft's content before one edit (a chat edit, a manual save or a revert)."
+      },
+      "FunnelRow": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "found",
+              "applied",
+              "interview",
+              "interview_done"
+            ],
+            "title": "Stage"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "rate": {
+            "type": "number",
+            "title": "Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "count",
+          "rate"
+        ],
+        "title": "FunnelRow",
+        "description": "Row of AnalyticsTables.funnel: found -> applied -> interview -> interview_done."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "JobActionUpdate": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "JobActionUpdate",
+        "description": "Body of PATCH /jobs/{job_id}/action: set the application status of a job."
+      },
+      "JobOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "post_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Id"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
+          "update_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Update At"
+          },
+          "job_type": {
+            "$ref": "#/components/schemas/JobType"
+          },
+          "compatibility": {
+            "type": "integer",
+            "title": "Compatibility"
+          },
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "requirements": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requirements"
+          },
+          "matched": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched"
+          },
+          "missing": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing"
+          },
+          "reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "company_name",
+          "position",
+          "description",
+          "post_id",
+          "link",
+          "update_at",
+          "job_type",
+          "compatibility",
+          "action",
+          "requirements",
+          "matched",
+          "missing",
+          "reasoning"
+        ],
+        "title": "JobOut",
+        "description": "One job_board_table row, as returned by GET /jobs and GET /jobs/{job_id}."
+      },
+      "JobPage": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JobOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset",
+          "items"
+        ],
+        "title": "JobPage",
+        "description": "Response of GET /jobs: one page of filtered jobs plus the total match count."
+      },
+      "JobType": {
+        "type": "string",
+        "enum": [
+          "onsite",
+          "remote",
+          "hybrid",
+          "unknown"
+        ],
+        "title": "JobType"
+      },
+      "JobTypeRow": {
+        "properties": {
+          "job_type": {
+            "$ref": "#/components/schemas/JobType"
+          },
+          "found": {
+            "type": "integer",
+            "title": "Found"
+          },
+          "applied": {
+            "type": "integer",
+            "title": "Applied"
+          },
+          "interview": {
+            "type": "integer",
+            "title": "Interview"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_type",
+          "found",
+          "applied",
+          "interview"
+        ],
+        "title": "JobTypeRow",
+        "description": "Row of AnalyticsTables.by_job_type: jobs found, applied to and interviewed per work type."
+      },
+      "NearMissJob": {
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "compatibility": {
+            "type": "integer",
+            "title": "Compatibility"
+          },
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
+          "missing_required": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing Required"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_name",
+          "position",
+          "compatibility",
+          "action",
+          "link",
+          "missing_required"
+        ],
+        "title": "NearMissJob",
+        "description": "Row of AnalyticsReport.near_miss_jobs: a job you're broadly qualified for that misses\nat least one required skill (agents/analytics/agent.py NEAR_MISS_COLUMNS)."
+      },
+      "ResumeDraftOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "job_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Job Id"
+          },
+          "company_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "update_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Update At"
+          },
+          "resume": {
+            "type": "string",
+            "title": "Resume"
+          },
+          "side_projects": {
+            "type": "string",
+            "title": "Side Projects"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array",
+            "title": "Messages",
+            "default": []
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/DraftVersion"
+            },
+            "type": "array",
+            "title": "Versions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "job_id",
+          "company_name",
+          "position",
+          "created_at",
+          "update_at",
+          "resume",
+          "side_projects",
+          "messages",
+          "versions"
+        ],
+        "title": "ResumeDraftOut",
+        "description": "A saved resume draft, as returned by GET/PUT /agents/resume/drafts/{draft_id}, the revert\nroute and the chat websocket's \"done\" event: the current docs, the chat and older versions."
+      },
+      "ResumeDraftSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "job_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Job Id"
+          },
+          "company_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "update_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Update At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "job_id",
+          "company_name",
+          "position",
+          "created_at",
+          "update_at"
+        ],
+        "title": "ResumeDraftSummary",
+        "description": "One row of GET /agents/resume/drafts: a saved resume draft without its content."
+      },
+      "ResumeDraftUpdate": {
+        "properties": {
+          "resume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume"
+          },
+          "side_projects": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side Projects"
+          }
+        },
+        "type": "object",
+        "title": "ResumeDraftUpdate",
+        "description": "Body of PUT /agents/resume/drafts/{draft_id}: a manual edit from the UI.\nFields left out are not changed; the old content is kept as a version."
+      },
+      "ResumeReport": {
+        "properties": {
+          "draft_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Draft Id"
+          },
+          "job_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Job Id"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "resume": {
+            "type": "string",
+            "title": "Resume"
+          },
+          "side_projects": {
+            "type": "string",
+            "title": "Side Projects"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "draft_id",
+          "job_id",
+          "company_name",
+          "position",
+          "resume",
+          "side_projects",
+          "generated_at"
+        ],
+        "title": "ResumeReport",
+        "description": "Response of POST /agents/resume/{job_id}: a Markdown resume tailored to the saved\njob, plus Markdown side-project ideas that close its skill gaps. Saved as the resume\ndraft draft_id, which the resume chat edits."
+      },
+      "RunStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed"
+        ],
+        "title": "RunStatus",
+        "description": "Lifecycle of a graph run: queued -> running -> succeeded | failed."
+      },
+      "SideProject": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "effort": {
+            "type": "string",
+            "enum": [
+              "weekend",
+              "1-2 weeks",
+              "1 month+"
+            ],
+            "title": "Effort"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "skills",
+          "description",
+          "why",
+          "effort"
+        ],
+        "title": "SideProject",
+        "description": "A side project the analytics agent recommends to close skill gaps from the near-miss jobs."
+      },
+      "SkillGap": {
+        "properties": {
+          "skill": {
+            "type": "string",
+            "title": "Skill"
+          },
+          "jobs": {
+            "type": "integer",
+            "title": "Jobs"
+          },
+          "required_in": {
+            "type": "integer",
+            "title": "Required In"
+          },
+          "avg_compatibility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Compatibility"
+          },
+          "companies": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill",
+          "jobs",
+          "required_in",
+          "avg_compatibility",
+          "companies"
+        ],
+        "title": "SkillGap",
+        "description": "Row of AnalyticsReport.skill_gaps: a skill missing across the near-miss jobs\n(agents/analytics/agent.py SKILL_GAP_COLUMNS)."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WeeklyRow": {
+        "properties": {
+          "week": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Week"
+          },
+          "searched": {
+            "type": "integer",
+            "title": "Searched",
+            "default": 0
+          },
+          "applied": {
+            "type": "integer",
+            "title": "Applied",
+            "default": 0
+          },
+          "drop": {
+            "type": "integer",
+            "title": "Drop",
+            "default": 0
+          },
+          "interview_scheduled": {
+            "type": "integer",
+            "title": "Interview Scheduled",
+            "default": 0
+          },
+          "interview_inprogress": {
+            "type": "integer",
+            "title": "Interview Inprogress",
+            "default": 0
+          },
+          "interview_done": {
+            "type": "integer",
+            "title": "Interview Done",
+            "default": 0
+          },
+          "denied": {
+            "type": "integer",
+            "title": "Denied",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "searched",
+          "applied",
+          "drop",
+          "interview_scheduled",
+          "interview_inprogress",
+          "interview_done",
+          "denied"
+        ],
+        "title": "WeeklyRow",
+        "description": "Row of AnalyticsTables.weekly: jobs by week of their last update, one count per action."
+      }
+    }
+  }
+}

@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Annotated, Literal, TypedDict
 
 import pandas as pd
+from pydantic import TypeAdapter, ValidationError
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
@@ -47,6 +48,7 @@ from agents.portal_search.agent import _extract_code, _final_channel, _format_ob
 from agents.qualification_check.agent import KNOWLEDGE_FILE
 from agents.resume_builder.agent import load_background
 from agents.sandbox import SandboxConfig, SandboxSession
+from apis.schemas import NearMissJob, SkillGap
 from db.dbOps import all_jobs
 from db.models import Action, JobType
 
@@ -385,6 +387,15 @@ def _read_csv(sbx: SandboxSession, path: str, columns: list[str]) -> pd.DataFram
     return df[columns]
 
 
+def _rows(df: pd.DataFrame, schema: type, path: str) -> list[dict]:
+    """The CSV's rows checked against the API schema the frontend gets; ValueError says what to fix."""
+    try:
+        TypeAdapter(list[schema]).validate_python(_records(df))
+    except ValidationError as e:
+        raise ValueError(f"{path} has invalid values: {e}") from e
+    return _records(df)
+
+
 def _read_results(sbx: SandboxSession) -> dict:
     """Validated results from the sandbox files; ValueError says what to fix."""
     near_miss = _read_csv(sbx, NEAR_MISS_FILE, NEAR_MISS_COLUMNS)
@@ -420,8 +431,8 @@ def _read_results(sbx: SandboxSession) -> dict:
             raise ValueError(f'project {i} "effort" must be one of {list(EFFORTS)}, got {p["effort"]!r}.')
 
     return {
-        "near_miss_jobs": _records(near_miss),
-        "skill_gaps": _records(gaps),
+        "near_miss_jobs": _rows(near_miss, NearMissJob, NEAR_MISS_FILE),
+        "skill_gaps": _rows(gaps, SkillGap, SKILL_GAPS_FILE),
         "analysis": report["analysis"].strip(),
         "conclusion": report["conclusion"].strip(),
         "projects": [{k: p[k] for k in PROJECT_KEYS} for p in projects],
