@@ -37,6 +37,7 @@ class AgentRunSummary(Schema):
     positions: int = 0
     scored: int = 0
     ingested: int = 0  # rows written by the graph's db_ingestion node
+    skipped_known: int = 0  # postings already in the DB, not re-scored
     portal_errors: list[dict] = []
     qualification_errors: list[dict] = []
     ingestion_errors: list[dict] = []
@@ -180,6 +181,74 @@ class AnalyticsRun(Schema):
     error: Optional[str] = None
 
 
+DocKind = Literal["resumes", "education", "projects", "papers", "achievements", "other"]
+
+
+class DocNode(Schema):
+    """A file or folder under Docs/user_docs, for the knowledge base page's tree view."""
+    name: str
+    path: str  # relative to Docs/user_docs
+    is_dir: bool
+    size: Optional[int] = None  # bytes; None for folders
+    usable: bool  # a .md/.txt/.pdf the knowledge base agent reads (images etc. are listed but ignored)
+    children: list["DocNode"] = []
+
+
+class DocFolder(Schema):
+    """One kind of document the knowledge base agent reads: where to drop it and what's there now."""
+    kind: DocKind
+    folder: str  # relative to Docs/user_docs; "" for other (files placed directly in it)
+    label: str
+    description: str
+    exists: bool
+    documents: int  # files in it the agent would read
+    tree: list[DocNode]
+
+
+class UserDocs(Schema):
+    """Response of GET /agents/knowledge/documents: the Docs/user_docs layout, what each folder
+    holds, and the current knowledge base (empty until it is first generated)."""
+    root: str  # absolute path of Docs/user_docs
+    folders: list[DocFolder]
+    knowledge_file: str
+    knowledge: str = ""
+    knowledge_updated_at: Optional[datetime] = None
+
+
+class KnowledgeRunRequest(Schema):
+    """Body of POST /agents/knowledge/runs: which kinds of documents to build the knowledge base
+    from (default: every kind) and whether to tune portals.yml to it afterwards."""
+    kinds: Optional[list[DocKind]] = None
+    update_portals: bool = True
+
+
+class PortalChanges(Schema):
+    """What the knowledge base agent changed in portals.yml (title_filter keywords and tracked companies)."""
+    positive_added: list[str] = []
+    positive_removed: list[str] = []
+    negative_added: list[str] = []
+    negative_removed: list[str] = []
+    companies_added: list[dict] = []  # {"name", "careers_url"}
+    companies_enabled: list[str] = []
+    companies_disabled: list[str] = []
+    reasoning: str = ""
+
+
+class KnowledgeRun(Schema):
+    """Returned by POST /agents/knowledge/runs and GET /agents/knowledge/runs/{run_id}; the
+    frontend polls it until status is succeeded or failed."""
+    id: UUID
+    status: RunStatus
+    kinds: list[DocKind]
+    update_portals: bool
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    documents: list[str] = []  # files the knowledge base was built from, relative to Docs/user_docs
+    portals: Optional[PortalChanges] = None
+    error: Optional[str] = None
+
+
 class ResumeReport(Schema):
     """Response of POST /agents/resume/{job_id}: a Markdown resume tailored to the saved
     job, plus Markdown side-project ideas that close its skill gaps. Saved as the resume
@@ -245,7 +314,7 @@ class JobOut(Schema):
     id: UUID
     company_name: str
     position: str
-    description: Optional[str] = None
+    description: Optional[str] = None  # read from the job's .md file; only filled by GET /jobs/{job_id}
     post_id: Optional[str] = None  # the portal's own id for the posting
     link: Optional[str] = None
     update_at: datetime

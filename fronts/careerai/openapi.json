@@ -223,6 +223,160 @@
         }
       }
     },
+    "/agents/knowledge/documents": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Get User Docs",
+        "description": "The Docs/user_docs folders the knowledge base agent reads (resumes, education, projects,\npapers, achievements, other): whether each exists, how many documents it holds and a tree\nof its files, plus the current knowledge base.",
+        "operationId": "get_user_docs",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDocs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/knowledge/folders": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Create User Docs Folders",
+        "description": "Creates Docs/user_docs and any of its document folders that are missing, so a new user\nhas the layout to drop files into. Returns the updated listing.",
+        "operationId": "create_user_docs_folders",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDocs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/knowledge/runs": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "List Knowledge Runs",
+        "description": "Lists the knowledge base runs started since the API came up, newest first.",
+        "operationId": "list_knowledge_runs",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgeRun"
+                  },
+                  "type": "array",
+                  "title": "Response List Knowledge Runs"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Start Knowledge Run",
+        "description": "Spins off the knowledge base agent: it rebuilds Docs/user_docs/user_knowledge.md from the\nchosen kinds of documents and adjusts portals.yml's title keywords and companies to it.\nTakes several minutes (one LLM call per section and project). 422 if none of the chosen\nfolders has a document. Returns immediately; poll GET /agents/knowledge/runs/{run_id}.",
+        "operationId": "start_knowledge_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/knowledge/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Get Knowledge Run",
+        "description": "Status of one knowledge base run; documents and portal changes are set once it succeeds.",
+        "operationId": "get_knowledge_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeRun"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agents/resume/{job_id}": {
       "post": {
         "tags": [
@@ -611,10 +765,10 @@
                   "type": "null"
                 }
               ],
-              "description": "matches company, position or description",
+              "description": "matches company or position",
               "title": "Search"
             },
-            "description": "matches company, position or description"
+            "description": "matches company or position"
           },
           {
             "name": "sort_by",
@@ -700,7 +854,7 @@
           "jobs"
         ],
         "summary": "Get Job",
-        "description": "One job with its full description, for the job detail page.",
+        "description": "One job with its full description (read from its .md file), for the job detail page.",
         "operationId": "get_job",
         "parameters": [
           {
@@ -977,6 +1131,11 @@
             "title": "Ingested",
             "default": 0
           },
+          "skipped_known": {
+            "type": "integer",
+            "title": "Skipped Known",
+            "default": 0
+          },
           "portal_errors": {
             "items": {
               "additionalProperties": true,
@@ -1010,6 +1169,7 @@
           "positions",
           "scored",
           "ingested",
+          "skipped_known",
           "portal_errors",
           "qualification_errors",
           "ingestion_errors"
@@ -1335,6 +1495,111 @@
         "title": "CompatibilityRow",
         "description": "Row of AnalyticsTables.compatibility: the 0-10 compatibility score histogram."
       },
+      "DocFolder": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "resumes",
+              "education",
+              "projects",
+              "papers",
+              "achievements",
+              "other"
+            ],
+            "title": "Kind"
+          },
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "exists": {
+            "type": "boolean",
+            "title": "Exists"
+          },
+          "documents": {
+            "type": "integer",
+            "title": "Documents"
+          },
+          "tree": {
+            "items": {
+              "$ref": "#/components/schemas/DocNode"
+            },
+            "type": "array",
+            "title": "Tree"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "folder",
+          "label",
+          "description",
+          "exists",
+          "documents",
+          "tree"
+        ],
+        "title": "DocFolder",
+        "description": "One kind of document the knowledge base agent reads: where to drop it and what's there now."
+      },
+      "DocNode": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "is_dir": {
+            "type": "boolean",
+            "title": "Is Dir"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "usable": {
+            "type": "boolean",
+            "title": "Usable"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/DocNode"
+            },
+            "type": "array",
+            "title": "Children",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "path",
+          "is_dir",
+          "size",
+          "usable",
+          "children"
+        ],
+        "title": "DocNode",
+        "description": "A file or folder under Docs/user_docs, for the knowledge base page's tree view."
+      },
       "DraftVersion": {
         "properties": {
           "resume": {
@@ -1629,6 +1894,144 @@
         "title": "JobTypeRow",
         "description": "Row of AnalyticsTables.by_job_type: jobs found, applied to and interviewed per work type."
       },
+      "KnowledgeRun": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "kinds": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "resumes",
+                "education",
+                "projects",
+                "papers",
+                "achievements",
+                "other"
+              ]
+            },
+            "type": "array",
+            "title": "Kinds"
+          },
+          "update_portals": {
+            "type": "boolean",
+            "title": "Update Portals"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Documents",
+            "default": []
+          },
+          "portals": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortalChanges"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "kinds",
+          "update_portals",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "documents",
+          "portals",
+          "error"
+        ],
+        "title": "KnowledgeRun",
+        "description": "Returned by POST /agents/knowledge/runs and GET /agents/knowledge/runs/{run_id}; the\nfrontend polls it until status is succeeded or failed."
+      },
+      "KnowledgeRunRequest": {
+        "properties": {
+          "kinds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "resumes",
+                    "education",
+                    "projects",
+                    "papers",
+                    "achievements",
+                    "other"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kinds"
+          },
+          "update_portals": {
+            "type": "boolean",
+            "title": "Update Portals",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "KnowledgeRunRequest",
+        "description": "Body of POST /agents/knowledge/runs: which kinds of documents to build the knowledge base\nfrom (default: every kind) and whether to tune portals.yml to it afterwards."
+      },
       "NearMissJob": {
         "properties": {
           "company_name": {
@@ -1680,6 +2083,85 @@
         ],
         "title": "NearMissJob",
         "description": "Row of AnalyticsReport.near_miss_jobs: a job you're broadly qualified for that misses\nat least one required skill (agents/analytics/agent.py NEAR_MISS_COLUMNS)."
+      },
+      "PortalChanges": {
+        "properties": {
+          "positive_added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Positive Added",
+            "default": []
+          },
+          "positive_removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Positive Removed",
+            "default": []
+          },
+          "negative_added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Negative Added",
+            "default": []
+          },
+          "negative_removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Negative Removed",
+            "default": []
+          },
+          "companies_added": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Companies Added",
+            "default": []
+          },
+          "companies_enabled": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Companies Enabled",
+            "default": []
+          },
+          "companies_disabled": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Companies Disabled",
+            "default": []
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "positive_added",
+          "positive_removed",
+          "negative_added",
+          "negative_removed",
+          "companies_added",
+          "companies_enabled",
+          "companies_disabled",
+          "reasoning"
+        ],
+        "title": "PortalChanges",
+        "description": "What the knowledge base agent changed in portals.yml (title_filter keywords and tracked companies)."
       },
       "ResumeDraftOut": {
         "properties": {
@@ -1999,6 +2481,52 @@
         ],
         "title": "SkillGap",
         "description": "Row of AnalyticsReport.skill_gaps: a skill missing across the near-miss jobs\n(agents/analytics/agent.py SKILL_GAP_COLUMNS)."
+      },
+      "UserDocs": {
+        "properties": {
+          "root": {
+            "type": "string",
+            "title": "Root"
+          },
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/DocFolder"
+            },
+            "type": "array",
+            "title": "Folders"
+          },
+          "knowledge_file": {
+            "type": "string",
+            "title": "Knowledge File"
+          },
+          "knowledge": {
+            "type": "string",
+            "title": "Knowledge",
+            "default": ""
+          },
+          "knowledge_updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root",
+          "folders",
+          "knowledge_file",
+          "knowledge",
+          "knowledge_updated_at"
+        ],
+        "title": "UserDocs",
+        "description": "Response of GET /agents/knowledge/documents: the Docs/user_docs layout, what each folder\nholds, and the current knowledge base (empty until it is first generated)."
       },
       "ValidationError": {
         "properties": {

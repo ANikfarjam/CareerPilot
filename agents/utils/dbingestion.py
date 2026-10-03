@@ -6,9 +6,12 @@ Writes the scored postings from qualification_check into job_board_table.
   them, and keeps their action (application status) as you set it.
   Postings without a score (no description, or scoring failed) are skipped:
   compatibility is required in the table.
+  Descriptions are written to Docs/job_descriptions/<id>.md (db/documents.py);
+  the table only stores their description_path.
 
 Orchestration:
-  - `positions_to_jobs()` maps a scored DataFrame to job_board_table rows.
+  - `positions_to_jobs()` maps a scored DataFrame to job_board_table rows
+    (with the raw "description" text, not yet written to a file).
   - `make_db_ingestion_node()` returns a plain LangGraph node for the parent
     graph: reads `scored_positions` and returns {"ingested": count,
     "ingestion_errors": [...]}.
@@ -21,6 +24,7 @@ import pandas as pd
 from agents.portal_search.agent import JOB_TYPES
 from agents.qualification_check.agent import _text
 from db.dbOps import upsert_jobs
+from db.documents import write_description
 
 
 def job_id(link: str) -> uuid.UUID:
@@ -54,6 +58,23 @@ def positions_to_jobs(scored: pd.DataFrame) -> tuple[list[dict], list[dict]]:
     return list(jobs.values()), skipped
 
 
+def save_descriptions(jobs: list[dict]) -> list[dict]:
+    """Writes each job's "description" to its .md file and replaces it with description_path.
+
+    Returns [{"link", "error"}, ...] for files that couldn't be written; those jobs are kept without a path.
+    """
+    errors = []
+    for job in jobs:
+        description = job.pop("description", None)
+        job["description_path"] = None
+        if description:
+            try:
+                job["description_path"] = write_description(job["id"], description)
+            except OSError as e:
+                errors.append({"link": job["link"], "error": f"description file write failed: {e}"})
+    return errors
+
+
 def make_db_ingestion_node():
     """LangGraph node for the parent (orchestrator) graph; runs after qualification_check."""
 
@@ -62,6 +83,7 @@ def make_db_ingestion_node():
         if not isinstance(scored, pd.DataFrame):  # list of row dicts (checkpointed parent graph)
             scored = pd.DataFrame(scored or [])
         jobs, errors = positions_to_jobs(scored)
+        errors += save_descriptions(jobs)
         try:
             ingested = upsert_jobs(jobs)
         except Exception as e:  # keep the run's results (CSV) even if the DB is down

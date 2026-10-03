@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { BuildResumeData, BuildResumeErrors, BuildResumeResponses, GetAnalyticsData, GetAnalyticsResponses, GetAnalyticsRunData, GetAnalyticsRunErrors, GetAnalyticsRunResponses, GetJobData, GetJobErrors, GetJobResponses, GetResumeDraftData, GetResumeDraftErrors, GetResumeDraftResponses, GetRunData, GetRunErrors, GetRunResponses, HealthData, HealthResponses, ListJobsData, ListJobsErrors, ListJobsResponses, ListPortalsData, ListPortalsResponses, ListResumeDraftsData, ListResumeDraftsErrors, ListResumeDraftsResponses, ListRunsData, ListRunsResponses, ListTargetPositionsData, ListTargetPositionsResponses, RevertResumeDraftData, RevertResumeDraftErrors, RevertResumeDraftResponses, StartAnalyticsRunData, StartAnalyticsRunErrors, StartAnalyticsRunResponses, StartRunData, StartRunErrors, StartRunResponses, UpdateJobActionData, UpdateJobActionErrors, UpdateJobActionResponses, UpdateResumeDraftData, UpdateResumeDraftErrors, UpdateResumeDraftResponses } from './types.gen';
+import type { BuildResumeData, BuildResumeErrors, BuildResumeResponses, CreateUserDocsFoldersData, CreateUserDocsFoldersResponses, GetAnalyticsData, GetAnalyticsResponses, GetAnalyticsRunData, GetAnalyticsRunErrors, GetAnalyticsRunResponses, GetJobData, GetJobErrors, GetJobResponses, GetKnowledgeRunData, GetKnowledgeRunErrors, GetKnowledgeRunResponses, GetResumeDraftData, GetResumeDraftErrors, GetResumeDraftResponses, GetRunData, GetRunErrors, GetRunResponses, GetUserDocsData, GetUserDocsResponses, HealthData, HealthResponses, ListJobsData, ListJobsErrors, ListJobsResponses, ListKnowledgeRunsData, ListKnowledgeRunsResponses, ListPortalsData, ListPortalsResponses, ListResumeDraftsData, ListResumeDraftsErrors, ListResumeDraftsResponses, ListRunsData, ListRunsResponses, ListTargetPositionsData, ListTargetPositionsResponses, RevertResumeDraftData, RevertResumeDraftErrors, RevertResumeDraftResponses, StartAnalyticsRunData, StartAnalyticsRunErrors, StartAnalyticsRunResponses, StartKnowledgeRunData, StartKnowledgeRunErrors, StartKnowledgeRunResponses, StartRunData, StartRunErrors, StartRunResponses, UpdateJobActionData, UpdateJobActionErrors, UpdateJobActionResponses, UpdateResumeDraftData, UpdateResumeDraftErrors, UpdateResumeDraftResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -81,6 +81,54 @@ export const startAnalyticsRun = <ThrowOnError extends boolean = false>(options:
 export const getAnalyticsRun = <ThrowOnError extends boolean = false>(options: Options<GetAnalyticsRunData, ThrowOnError>): RequestResult<GetAnalyticsRunResponses, GetAnalyticsRunErrors, ThrowOnError> => (options.client ?? client).get<GetAnalyticsRunResponses, GetAnalyticsRunErrors, ThrowOnError>({ url: '/agents/analytics/runs/{run_id}', ...options });
 
 /**
+ * Get User Docs
+ *
+ * The Docs/user_docs folders the knowledge base agent reads (resumes, education, projects,
+ * papers, achievements, other): whether each exists, how many documents it holds and a tree
+ * of its files, plus the current knowledge base.
+ */
+export const getUserDocs = <ThrowOnError extends boolean = false>(options?: Options<GetUserDocsData, ThrowOnError>): RequestResult<GetUserDocsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetUserDocsResponses, unknown, ThrowOnError>({ url: '/agents/knowledge/documents', ...options });
+
+/**
+ * Create User Docs Folders
+ *
+ * Creates Docs/user_docs and any of its document folders that are missing, so a new user
+ * has the layout to drop files into. Returns the updated listing.
+ */
+export const createUserDocsFolders = <ThrowOnError extends boolean = false>(options?: Options<CreateUserDocsFoldersData, ThrowOnError>): RequestResult<CreateUserDocsFoldersResponses, unknown, ThrowOnError> => (options?.client ?? client).post<CreateUserDocsFoldersResponses, unknown, ThrowOnError>({ url: '/agents/knowledge/folders', ...options });
+
+/**
+ * List Knowledge Runs
+ *
+ * Lists the knowledge base runs started since the API came up, newest first.
+ */
+export const listKnowledgeRuns = <ThrowOnError extends boolean = false>(options?: Options<ListKnowledgeRunsData, ThrowOnError>): RequestResult<ListKnowledgeRunsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListKnowledgeRunsResponses, unknown, ThrowOnError>({ url: '/agents/knowledge/runs', ...options });
+
+/**
+ * Start Knowledge Run
+ *
+ * Spins off the knowledge base agent: it rebuilds Docs/user_docs/user_knowledge.md from the
+ * chosen kinds of documents and adjusts portals.yml's title keywords and companies to it.
+ * Takes several minutes (one LLM call per section and project). 422 if none of the chosen
+ * folders has a document. Returns immediately; poll GET /agents/knowledge/runs/{run_id}.
+ */
+export const startKnowledgeRun = <ThrowOnError extends boolean = false>(options: Options<StartKnowledgeRunData, ThrowOnError>): RequestResult<StartKnowledgeRunResponses, StartKnowledgeRunErrors, ThrowOnError> => (options.client ?? client).post<StartKnowledgeRunResponses, StartKnowledgeRunErrors, ThrowOnError>({
+    url: '/agents/knowledge/runs',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Knowledge Run
+ *
+ * Status of one knowledge base run; documents and portal changes are set once it succeeds.
+ */
+export const getKnowledgeRun = <ThrowOnError extends boolean = false>(options: Options<GetKnowledgeRunData, ThrowOnError>): RequestResult<GetKnowledgeRunResponses, GetKnowledgeRunErrors, ThrowOnError> => (options.client ?? client).get<GetKnowledgeRunResponses, GetKnowledgeRunErrors, ThrowOnError>({ url: '/agents/knowledge/runs/{run_id}', ...options });
+
+/**
  * Build Resume
  *
  * Builds a Markdown resume tailored to a saved job from the user's knowledge base and
@@ -150,7 +198,7 @@ export const listJobs = <ThrowOnError extends boolean = false>(options?: Options
 /**
  * Get Job
  *
- * One job with its full description, for the job detail page.
+ * One job with its full description (read from its .md file), for the job detail page.
  */
 export const getJob = <ThrowOnError extends boolean = false>(options: Options<GetJobData, ThrowOnError>): RequestResult<GetJobResponses, GetJobErrors, ThrowOnError> => (options.client ?? client).get<GetJobResponses, GetJobErrors, ThrowOnError>({ url: '/jobs/{job_id}', ...options });
 

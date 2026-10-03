@@ -1,5 +1,6 @@
 from db.connector import DBConnector
 from db import models
+from db.documents import delete_description, read_description
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 import datetime
@@ -10,10 +11,11 @@ UUID = uuid.UUID
 db = DBConnector()
 
 
-def add_job(id: UUID, company_name: str, position: str, description: str, link: str,
+def add_job(id: UUID, company_name: str, position: str, description_path: str, link: str,
             compatibility: int, job_type: str = "unknown", action: str = "searched"):
     """
-        Adds a new job to the job board.
+        Adds a new job to the job board. description_path points at the
+        description's .md file (see db.documents.write_description).
         @return: the id of the new job
     """
     conn, session = db.connect()
@@ -22,7 +24,7 @@ def add_job(id: UUID, company_name: str, position: str, description: str, link: 
             id=id,
             company_name=company_name,
             position=position,
-            description=description,
+            description_path=description_path,
             link=link,
             compatibility=compatibility,
             job_type=models.JobType(job_type),
@@ -41,7 +43,7 @@ def add_job(id: UUID, company_name: str, position: str, description: str, link: 
 
 def delete_job(id: UUID):
     """
-        Deletes the job with the given id.
+        Deletes the job with the given id, and its description file.
         @return: True if a job was deleted, False if no job was found
     """
     conn, session = db.connect()
@@ -49,8 +51,10 @@ def delete_job(id: UUID):
         job = session.get(models.JobBoard, id)
         if job is None:
             return False
+        path = job.description_path
         session.delete(job)
         session.commit()
+        delete_description(path)
         return True
     except Exception:
         session.rollback()
@@ -60,7 +64,7 @@ def delete_job(id: UUID):
         conn.close()
 
 
-def update_job(id: UUID, company_name: str = None, position: str = None, description: str = None,
+def update_job(id: UUID, company_name: str = None, position: str = None, description_path: str = None,
                link: str = None, compatibility: int = None, job_type: str = None, action: str = None):
     """
         Updates the given fields of a job. Fields left as None are not changed.
@@ -75,8 +79,8 @@ def update_job(id: UUID, company_name: str = None, position: str = None, descrip
             job.company_name = company_name
         if position is not None:
             job.position = position
-        if description is not None:
-            job.description = description
+        if description_path is not None:
+            job.description_path = description_path
         if link is not None:
             job.link = link
         if compatibility is not None:
@@ -119,7 +123,7 @@ def upsert_jobs(jobs: list[dict]):
             set_={
                 "company_name": stmt.excluded.company_name,
                 "position": stmt.excluded.position,
-                "description": stmt.excluded.description,
+                "description_path": stmt.excluded.description_path,
                 "post_id": stmt.excluded.post_id,
                 "link": stmt.excluded.link,
                 "job_type": stmt.excluded.job_type,
@@ -145,16 +149,34 @@ def upsert_jobs(jobs: list[dict]):
 def all_jobs(with_description: bool = False):
     """
         Fetches every job, for analytics over the whole board.
-        Descriptions are left out unless with_description (they are most of the row size).
-        @return: list of dicts with the JobBoard columns; enums as their values
+        Descriptions are read from their .md files only if with_description (they are large).
+        @return: list of dicts with the JobBoard columns except description_path, plus
+                 "description" if with_description; enums as their values
     """
     conn, session = db.connect()
     try:
-        columns = [c for c in models.JobBoard.__table__.columns
-                   if with_description or c.name != "description"]
-        rows = session.execute(select(*columns)).mappings().all()
-        return [{k: v.value if isinstance(v, (models.Action, models.JobType)) else v
-                 for k, v in row.items()} for row in rows]
+        rows = session.execute(select(*models.JobBoard.__table__.columns)).mappings().all()
+        jobs = []
+        for row in rows:
+            job = {k: v.value if isinstance(v, (models.Action, models.JobType)) else v
+                   for k, v in row.items() if k != "description_path"}
+            if with_description:
+                job["description"] = read_description(row["description_path"])
+            jobs.append(job)
+        return jobs
+    finally:
+        session.close()
+        conn.close()
+
+
+def known_links():
+    """
+        Links of every saved job, so the search can skip postings it already scanned.
+        @return: set of link strings
+    """
+    conn, session = db.connect()
+    try:
+        return set(session.scalars(select(models.JobBoard.link).where(models.JobBoard.link.is_not(None))))
     finally:
         session.close()
         conn.close()
@@ -178,7 +200,8 @@ def list_jobs(action: str = None, job_type: str = None, min_compatibility: int =
               descending: bool = True, limit: int = 50, offset: int = 0):
     """
         Lists jobs matching the given filters. Filters left as None are not applied.
-        company is a case-insensitive exact match; search matches company, position or description.
+        company is a case-insensitive exact match; search matches company or position
+        (descriptions are files, see db/documents.py).
         @return: (total number of matching jobs, JobBoard rows of the requested page)
     """
     conn, session = db.connect()
@@ -195,8 +218,7 @@ def list_jobs(action: str = None, job_type: str = None, min_compatibility: int =
         if search:
             pattern = f"%{search}%"
             filters.append(models.JobBoard.company_name.ilike(pattern)
-                           | models.JobBoard.position.ilike(pattern)
-                           | models.JobBoard.description.ilike(pattern))
+                           | models.JobBoard.position.ilike(pattern))
 
         total = session.scalar(select(func.count()).select_from(models.JobBoard).where(*filters))
         column = getattr(models.JobBoard, sort_by)

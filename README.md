@@ -18,6 +18,8 @@ CareerAI also tracks your applications, so you always know which jobs you've alr
 
 - [Docker](https://docs.docker.com/get-docker/)
 - [just](https://github.com/casey/just) command runner
+- Python 3.12+
+- [Node.js](https://nodejs.org/) 20+ and [pnpm](https://pnpm.io/installation)
 - An NVIDIA GPU with CUDA support, plus the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
 
 > [!NOTE]
@@ -25,35 +27,60 @@ CareerAI also tracks your applications, so you always know which jobs you've alr
 
 ## Getting Started
 
-### 1. Download the model
+### 1. Clone the repository and install dependencies
+
+CareerAI is open source: clone the repository into your desired directory and install the Python and frontend dependencies:
+
+```bash
+git clone https://github.com/ANikfarjam/careerAI
+cd careerAI
+pip install rust-just   # or install just with your package manager
+just install_libraries
+```
+
+`install_libraries` creates a `.myenv` virtual environment, installs PyTorch (CUDA 12.6) and `requirements.txt` into it, and runs `pnpm install` for the frontend.
+
+### 2. Download the model
 
 CareerAI currently runs OpenAI's [gpt-oss-120b](https://huggingface.co/openai/gpt-oss-120b) locally. Download it from Hugging Face into the `./llmModel/` directory:
 
 ```bash
-pip install -U "huggingface_hub[cli]"
-huggingface-cli download openai/gpt-oss-120b
+just download_model
 ```
 
-### 2. Pull and run the app
+### 3. Build the agent sandbox
 
-The app is containerized and can be pulled from Docker Hub and run locally:
+The agents run generated code inside a hardened Docker container. Build its image once:
 
 ```bash
-# pull the image and run it with Docker
+just build_sandbox        # with the NVIDIA Container Toolkit
+just build_sandbox_cpu    # without a GPU
 ```
 
-### 3. Set up the database and frontend
+### 4. Set up the database
 
-Create the Postgres database container and start the GUI:
+Create the Postgres container:
 
 ```bash
 just create_postgressDB
-just run_gui
 ```
 
-## Managing the Containers
+Then create a `.env` file in the project root pointing the backend at it:
 
-Start and stop the agent (backend server) and database containers:
+```bash
+DATABASE_URL=postgresql://postgres:mysecretpassword@localhost:5432/postgres
+```
+
+### 5. Start the backend and the GUI
+
+```bash
+just start_app   # API at http://localhost:8000 (docs at /docs)
+just run_gui     # frontend at http://localhost:3000
+```
+
+## Managing the Services
+
+Start and stop the agent (backend server) and the database container:
 
 ```bash
 # start the agent
@@ -68,6 +95,8 @@ just stop_app
 # stop the database
 just stop_db
 ```
+
+`just start_app` runs the backend in the foreground so its logs print to the terminal; stop it with Ctrl+C or `just stop_app` from another terminal. Run `just --list` to see every available command.
 
 ## Upcoming Features
 

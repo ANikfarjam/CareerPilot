@@ -10,3 +10,8 @@
 *.env
 llmModel/
 Docs/
+
+# Backend process files (just start_app)
+.api.pid
+.api.log
+nohup.out

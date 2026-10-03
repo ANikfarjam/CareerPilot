@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, ChartColumn, FileText, Search } from "lucide-react"
+import { BookOpen, ChartColumn, FileText, Library, Search } from "lucide-react"
 
 import logo from "@/assests/Logo.jpeg"
 import {
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: "/search/page", label: "Search", icon: Search },
   { href: "/analytics/page", label: "Analytics", icon: ChartColumn },
   { href: "/resume_builder/page", label: "Resume", icon: FileText },
+  { href: "/agents_knowledge/page", label: "Knowledge", icon: Library },
   { href: "/docs/page", label: "Docs", icon: BookOpen },
 ]
 

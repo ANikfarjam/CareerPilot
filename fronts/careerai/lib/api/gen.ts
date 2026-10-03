@@ -2,7 +2,7 @@
 // (lib/client/sdk.gen.ts), which sends it through the shared client in
 // lib/client/client.gen.ts; failed requests throw ApiError.
 import * as sdk from "@/lib/client"
-import type { Action, AgentRunRequest, ListJobsData, ResumeDraftUpdate } from "@/lib/client"
+import type { Action, AgentRunRequest, KnowledgeRunRequest, ListJobsData, ResumeDraftUpdate } from "@/lib/client"
 import { API_URL } from "@/lib/hey-api"
 
 import type { Sandbox } from "./types"
@@ -62,6 +62,24 @@ export const startAnalyticsRun = (sandbox: Sandbox = "sandbox-cpu") =>
   unwrap(sdk.startAnalyticsRun({ body: { sandbox } }))
 
 export const getAnalyticsRun = (runId: string) => unwrap(sdk.getAnalyticsRun({ path: { run_id: runId } }))
+
+// ─────────────────────────────────────────────────────────
+// Knowledge base (agents/knowledge_base)
+// ─────────────────────────────────────────────────────────
+
+// The Docs/user_docs folders, what each holds (as a tree) and the current knowledge base.
+export const getUserDocs = () => unwrap(sdk.getUserDocs())
+
+// Creates the missing Docs/user_docs folders; returns the updated listing.
+export const createUserDocsFolders = () => unwrap(sdk.createUserDocsFolders())
+
+// Rebuilds the knowledge base from the chosen kinds and tunes portals.yml; takes several minutes.
+// 422 if the chosen folders are empty, 409 while another agent run is in progress.
+export const startKnowledgeRun = (body: KnowledgeRunRequest = {}) => unwrap(sdk.startKnowledgeRun({ body }))
+
+export const listKnowledgeRuns = () => unwrap(sdk.listKnowledgeRuns())
+
+export const getKnowledgeRun = (runId: string) => unwrap(sdk.getKnowledgeRun({ path: { run_id: runId } }))
 
 // ─────────────────────────────────────────────────────────
 // Job board (apis/reposetories/jobs.py)

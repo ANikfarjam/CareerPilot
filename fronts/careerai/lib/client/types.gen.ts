@@ -96,6 +96,10 @@ export type AgentRunSummary = {
      */
     ingested: number;
     /**
+     * Skipped Known
+     */
+    skipped_known: number;
+    /**
      * Portal Errors
      */
     portal_errors: Array<{
@@ -308,6 +312,74 @@ export type CompatibilityRow = {
 };
 
 /**
+ * DocFolder
+ *
+ * One kind of document the knowledge base agent reads: where to drop it and what's there now.
+ */
+export type DocFolder = {
+    /**
+     * Kind
+     */
+    kind: 'resumes' | 'education' | 'projects' | 'papers' | 'achievements' | 'other';
+    /**
+     * Folder
+     */
+    folder: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Exists
+     */
+    exists: boolean;
+    /**
+     * Documents
+     */
+    documents: number;
+    /**
+     * Tree
+     */
+    tree: Array<DocNode>;
+};
+
+/**
+ * DocNode
+ *
+ * A file or folder under Docs/user_docs, for the knowledge base page's tree view.
+ */
+export type DocNode = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Is Dir
+     */
+    is_dir: boolean;
+    /**
+     * Size
+     */
+    size: number | null;
+    /**
+     * Usable
+     */
+    usable: boolean;
+    /**
+     * Children
+     */
+    children: Array<DocNode>;
+};
+
+/**
  * DraftVersion
  *
  * A resume draft's content before one edit (a chat edit, a manual save or a revert).
@@ -481,6 +553,66 @@ export type JobTypeRow = {
 };
 
 /**
+ * KnowledgeRun
+ *
+ * Returned by POST /agents/knowledge/runs and GET /agents/knowledge/runs/{run_id}; the
+ * frontend polls it until status is succeeded or failed.
+ */
+export type KnowledgeRun = {
+    /**
+     * Id
+     */
+    id: string;
+    status: RunStatus;
+    /**
+     * Kinds
+     */
+    kinds: Array<'resumes' | 'education' | 'projects' | 'papers' | 'achievements' | 'other'>;
+    /**
+     * Update Portals
+     */
+    update_portals: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Started At
+     */
+    started_at: string | null;
+    /**
+     * Finished At
+     */
+    finished_at: string | null;
+    /**
+     * Documents
+     */
+    documents: Array<string>;
+    portals: PortalChanges | null;
+    /**
+     * Error
+     */
+    error: string | null;
+};
+
+/**
+ * KnowledgeRunRequest
+ *
+ * Body of POST /agents/knowledge/runs: which kinds of documents to build the knowledge base
+ * from (default: every kind) and whether to tune portals.yml to it afterwards.
+ */
+export type KnowledgeRunRequest = {
+    /**
+     * Kinds
+     */
+    kinds?: Array<'resumes' | 'education' | 'projects' | 'papers' | 'achievements' | 'other'> | null;
+    /**
+     * Update Portals
+     */
+    update_portals?: boolean;
+};
+
+/**
  * NearMissJob
  *
  * Row of AnalyticsReport.near_miss_jobs: a job you're broadly qualified for that misses
@@ -508,6 +640,48 @@ export type NearMissJob = {
      * Missing Required
      */
     missing_required: string | null;
+};
+
+/**
+ * PortalChanges
+ *
+ * What the knowledge base agent changed in portals.yml (title_filter keywords and tracked companies).
+ */
+export type PortalChanges = {
+    /**
+     * Positive Added
+     */
+    positive_added: Array<string>;
+    /**
+     * Positive Removed
+     */
+    positive_removed: Array<string>;
+    /**
+     * Negative Added
+     */
+    negative_added: Array<string>;
+    /**
+     * Negative Removed
+     */
+    negative_removed: Array<string>;
+    /**
+     * Companies Added
+     */
+    companies_added: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Companies Enabled
+     */
+    companies_enabled: Array<string>;
+    /**
+     * Companies Disabled
+     */
+    companies_disabled: Array<string>;
+    /**
+     * Reasoning
+     */
+    reasoning: string;
 };
 
 /**
@@ -708,6 +882,35 @@ export type SkillGap = {
      * Companies
      */
     companies: string | null;
+};
+
+/**
+ * UserDocs
+ *
+ * Response of GET /agents/knowledge/documents: the Docs/user_docs layout, what each folder
+ * holds, and the current knowledge base (empty until it is first generated).
+ */
+export type UserDocs = {
+    /**
+     * Root
+     */
+    root: string;
+    /**
+     * Folders
+     */
+    folders: Array<DocFolder>;
+    /**
+     * Knowledge File
+     */
+    knowledge_file: string;
+    /**
+     * Knowledge
+     */
+    knowledge: string;
+    /**
+     * Knowledge Updated At
+     */
+    knowledge_updated_at: string | null;
 };
 
 /**
@@ -921,6 +1124,111 @@ export type GetAnalyticsRunResponses = {
 };
 
 export type GetAnalyticsRunResponse = GetAnalyticsRunResponses[keyof GetAnalyticsRunResponses];
+
+export type GetUserDocsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agents/knowledge/documents';
+};
+
+export type GetUserDocsResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserDocs;
+};
+
+export type GetUserDocsResponse = GetUserDocsResponses[keyof GetUserDocsResponses];
+
+export type CreateUserDocsFoldersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agents/knowledge/folders';
+};
+
+export type CreateUserDocsFoldersResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserDocs;
+};
+
+export type CreateUserDocsFoldersResponse = CreateUserDocsFoldersResponses[keyof CreateUserDocsFoldersResponses];
+
+export type ListKnowledgeRunsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agents/knowledge/runs';
+};
+
+export type ListKnowledgeRunsResponses = {
+    /**
+     * Response List Knowledge Runs
+     *
+     * Successful Response
+     */
+    200: Array<KnowledgeRun>;
+};
+
+export type ListKnowledgeRunsResponse = ListKnowledgeRunsResponses[keyof ListKnowledgeRunsResponses];
+
+export type StartKnowledgeRunData = {
+    body: KnowledgeRunRequest;
+    path?: never;
+    query?: never;
+    url: '/agents/knowledge/runs';
+};
+
+export type StartKnowledgeRunErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartKnowledgeRunError = StartKnowledgeRunErrors[keyof StartKnowledgeRunErrors];
+
+export type StartKnowledgeRunResponses = {
+    /**
+     * Successful Response
+     */
+    202: KnowledgeRun;
+};
+
+export type StartKnowledgeRunResponse = StartKnowledgeRunResponses[keyof StartKnowledgeRunResponses];
+
+export type GetKnowledgeRunData = {
+    body?: never;
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/agents/knowledge/runs/{run_id}';
+};
+
+export type GetKnowledgeRunErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetKnowledgeRunError = GetKnowledgeRunErrors[keyof GetKnowledgeRunErrors];
+
+export type GetKnowledgeRunResponses = {
+    /**
+     * Successful Response
+     */
+    200: KnowledgeRun;
+};
+
+export type GetKnowledgeRunResponse = GetKnowledgeRunResponses[keyof GetKnowledgeRunResponses];
 
 export type BuildResumeData = {
     body?: never;
@@ -1137,7 +1445,7 @@ export type ListJobsData = {
         /**
          * Search
          *
-         * matches company, position or description
+         * matches company or position
          */
         search?: string | null;
         /**

@@ -37,6 +37,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from agents.portal_search.agent import _final_channel
 from agents.qualification_check.agent import KNOWLEDGE_FILE, MAX_DESCRIPTION_CHARS, _text, load_knowledge
 from db.dbOps import get_job
+from db.documents import read_description
 
 PROJECTS_DIR = KNOWLEDGE_FILE.parent / "projects"
 
@@ -60,7 +61,7 @@ def load_job(job_id: uuid.UUID) -> dict:
     job = get_job(job_id)
     if job is None:
         raise LookupError(f"job {job_id} not found")
-    description = _text(job.description)
+    description = _text(read_description(job.description_path))
     if not description:
         raise ValueError(f"job {job_id} has no description to tailor the resume to")
     if len(description) > MAX_DESCRIPTION_CHARS:

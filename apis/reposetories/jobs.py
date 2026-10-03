@@ -4,6 +4,7 @@ import logging
 import uuid
 
 from db import dbOps
+from db.documents import read_description
 from db.models import Action, JobType
 from apis.schemas import JobActionUpdate, JobOut, JobPage
 
@@ -18,7 +19,7 @@ def list_jobs(
     job_type: typing.Optional[JobType] = None,
     min_compatibility: typing.Optional[int] = fastapi.Query(None, ge=0, le=100),
     company: typing.Optional[str] = None,
-    search: typing.Optional[str] = fastapi.Query(None, description="matches company, position or description"),
+    search: typing.Optional[str] = fastapi.Query(None, description="matches company or position"),
     sort_by: typing.Literal["update_at", "compatibility", "company_name", "position"] = "update_at",
     order: typing.Literal["asc", "desc"] = "desc",
     limit: int = fastapi.Query(50, ge=1, le=200),
@@ -42,11 +43,11 @@ def list_jobs(
 
 @JOBS_ROUTER.get("/{job_id}", response_model=JobOut)
 def get_job(job_id: uuid.UUID):
-    """One job with its full description, for the job detail page."""
+    """One job with its full description (read from its .md file), for the job detail page."""
     job = dbOps.get_job(job_id)
     if job is None:
         raise fastapi.HTTPException(status_code=404, detail="job not found")
-    return job
+    return JobOut.model_validate(job).model_copy(update={"description": read_description(job.description_path)})
 
 
 @JOBS_ROUTER.patch("/{job_id}/action", response_model=JobOut)

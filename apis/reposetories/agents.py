@@ -11,9 +11,11 @@ from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from db import dbOps
 from apis.schemas import (AgentRun, AgentRunRequest, AgentRunSummary, AnalyticsReport, AnalyticsRun,
-                          AnalyticsRunRequest, ResumeDraftOut, ResumeDraftSummary, ResumeDraftUpdate,
-                          ResumeReport, RunStatus)
+                          AnalyticsRunRequest, KnowledgeRun, KnowledgeRunRequest, PortalChanges,
+                          ResumeDraftOut, ResumeDraftSummary, ResumeDraftUpdate, ResumeReport, RunStatus,
+                          UserDocs)
 from agents.analytics.agent import build_tables, load_jobs
+from agents.knowledge_base.agent import KINDS, KNOWLEDGE_FILE, USER_DOCS_DIR, create_folders, run_knowledge_base, scan_user_docs
 from agents.resume_builder.agent import load_job, run_resume_builder
 from agents.resume_builder.chat import stream_chat
 from agents.graph.analytic_graph import build_analytic_graph
@@ -29,6 +31,7 @@ logger = logging.getLogger(__name__)
 # found are already in job_board_table (written by the graph's db_ingestion node).
 RUNS: dict[uuid.UUID, AgentRun] = {}
 ANALYTICS_RUNS: dict[uuid.UUID, AnalyticsRun] = {}
+KNOWLEDGE_RUNS: dict[uuid.UUID, KnowledgeRun] = {}
 # One run at a time: every run shares the local LLM and a sandbox container.
 RUN_LOCK = threading.Lock()
 
@@ -60,6 +63,7 @@ def _run_graph(run_id: uuid.UUID, portals: list[dict]) -> None:
             positions=len(state.get("positions", [])),
             scored=int(scored["score"].notna().sum()) if scored is not None and "score" in scored else 0,
             ingested=state.get("ingested", 0),
+            skipped_known=state.get("skipped_known", 0),
             portal_errors=state.get("portal_errors", []),
             qualification_errors=state.get("qualification_errors", []),
             ingestion_errors=state.get("ingestion_errors", []),
@@ -174,6 +178,86 @@ def get_analytics_run(run_id: uuid.UUID):
     run = ANALYTICS_RUNS.get(run_id)
     if run is None:
         raise fastapi.HTTPException(status_code=404, detail="analytics run not found")
+    return run
+
+
+def _user_docs() -> UserDocs:
+    exists = KNOWLEDGE_FILE.exists()
+    return UserDocs(
+        root=str(USER_DOCS_DIR),
+        folders=scan_user_docs(),
+        knowledge_file=str(KNOWLEDGE_FILE),
+        knowledge=KNOWLEDGE_FILE.read_text() if exists else "",
+        knowledge_updated_at=(datetime.datetime.fromtimestamp(KNOWLEDGE_FILE.stat().st_mtime, datetime.UTC)
+                              if exists else None),
+    )
+
+
+@AGENTS_ROUTER.get("/knowledge/documents", response_model=UserDocs)
+def get_user_docs():
+    """The Docs/user_docs folders the knowledge base agent reads (resumes, education, projects,
+    papers, achievements, other): whether each exists, how many documents it holds and a tree
+    of its files, plus the current knowledge base."""
+    return _user_docs()
+
+
+@AGENTS_ROUTER.post("/knowledge/folders", response_model=UserDocs)
+def create_user_docs_folders():
+    """Creates Docs/user_docs and any of its document folders that are missing, so a new user
+    has the layout to drop files into. Returns the updated listing."""
+    create_folders()
+    return _user_docs()
+
+
+def _run_knowledge(run_id: uuid.UUID) -> None:
+    """Background task: rebuilds user_knowledge.md and (optionally) tunes portals.yml, then records the outcome."""
+    run = KNOWLEDGE_RUNS[run_id]
+    try:
+        run.status, run.started_at = RunStatus.running, _now()
+        result = run_knowledge_base(kinds=run.kinds, update_portals=run.update_portals)
+        run.documents = result["documents"]
+        run.portals = PortalChanges(**result["portals"]) if result["portals"] is not None else None
+        run.status = RunStatus.succeeded
+    except Exception as e:
+        logger.exception("knowledge run %s failed", run_id)
+        run.status, run.error = RunStatus.failed, str(e)
+    finally:
+        run.finished_at = _now()
+        RUN_LOCK.release()
+
+
+@AGENTS_ROUTER.post("/knowledge/runs", response_model=KnowledgeRun, status_code=fastapi.status.HTTP_202_ACCEPTED)
+def start_knowledge_run(body: KnowledgeRunRequest, background_tasks: fastapi.BackgroundTasks):
+    """Spins off the knowledge base agent: it rebuilds Docs/user_docs/user_knowledge.md from the
+    chosen kinds of documents and adjusts portals.yml's title keywords and companies to it.
+    Takes several minutes (one LLM call per section and project). 422 if none of the chosen
+    folders has a document. Returns immediately; poll GET /agents/knowledge/runs/{run_id}."""
+    kinds = body.kinds or list(KINDS)
+    counts = {f["kind"]: f["documents"] for f in scan_user_docs()}
+    if not any(counts[kind] for kind in kinds):
+        raise fastapi.HTTPException(status_code=422, detail=f"no documents in the chosen folders ({', '.join(kinds)})")
+    # Shares the local LLM with the other agents.
+    if not RUN_LOCK.acquire(blocking=False):
+        raise fastapi.HTTPException(status_code=409, detail="an agent run is already in progress")
+    run = KnowledgeRun(id=uuid.uuid4(), status=RunStatus.queued, kinds=kinds,
+                       update_portals=body.update_portals, created_at=_now())
+    KNOWLEDGE_RUNS[run.id] = run
+    background_tasks.add_task(_run_knowledge, run.id)  # releases RUN_LOCK when done
+    return run
+
+
+@AGENTS_ROUTER.get("/knowledge/runs", response_model=list[KnowledgeRun])
+def list_knowledge_runs():
+    """Lists the knowledge base runs started since the API came up, newest first."""
+    return sorted(KNOWLEDGE_RUNS.values(), key=lambda r: r.created_at, reverse=True)
+
+
+@AGENTS_ROUTER.get("/knowledge/runs/{run_id}", response_model=KnowledgeRun)
+def get_knowledge_run(run_id: uuid.UUID):
+    """Status of one knowledge base run; documents and portal changes are set once it succeeds."""
+    run = KNOWLEDGE_RUNS.get(run_id)
+    if run is None:
+        raise fastapi.HTTPException(status_code=404, detail="knowledge run not found")
     return run
 
 

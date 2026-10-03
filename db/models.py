@@ -29,7 +29,7 @@ class JobBoard(Base):
     id = Column(Uuid, primary_key=True, default=uuid.uuid4)
     company_name = Column(String, nullable=False)
     position = Column(String, nullable=False)
-    description = Column(String, nullable=True)
+    description_path = Column(String, nullable=True)  # Docs/job_descriptions/<id>.md, see db/documents.py
     post_id = Column(String, nullable=True)
     link = Column(String, nullable=True)
     update_at = Column(DateTime(timezone=True), nullable=False,

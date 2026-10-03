@@ -20,11 +20,13 @@ Orchestration:
     (input {"portal": {...}}, output adds "positions" as a list of row dicts).
     Needs a SandboxSession in the run context.
   - `search_portals()` runs it over many portals in one sandbox and returns a
-    pandas DataFrame with COLUMNS (plus the per-portal errors).
+    pandas DataFrame with COLUMNS (plus the per-portal errors). Postings whose
+    link is in `known` (already saved, see agents/utils/known_jobs.py) are
+    listed in the sandbox's known_links.txt and dropped from the DataFrame.
   - `make_portal_search_node()` returns a plain LangGraph node for the parent
     graph: reads `portals` from the parent state (default: all enabled
     tracked_companies in portals.yml) and returns {"positions": DataFrame,
-    "portal_errors"}. A DataFrame is not JSON-serializable, so convert it
+    "portal_errors", "skipped_known"}; skip_known=False rescans saved postings. A DataFrame is not JSON-serializable, so convert it
     (`df.to_dict("records")`) if the parent graph uses a checkpointer.
 """
 
@@ -45,6 +47,7 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command
 
 from agents.sandbox import SandboxConfig, SandboxSession
+from agents.utils.known_jobs import KNOWN_LINKS_FILE, drop_known, known_links_file, load_known_links
 
 PORTALS_FILE = Path(__file__).resolve().parents[1] / "utils" / "portals.yml"
 MAX_STEPS = 12  # model turns per portal
@@ -110,6 +113,9 @@ Prefer the ATS JSON API over HTML when the portal has one:
                 (if that 404s, POST the GraphQL endpoint in portal["api"])
   - Lever:      GET https://api.lever.co/v0/postings/<slug>?mode=json
 Otherwise fetch portal["careers_url"] and parse the HTML.
+
+{KNOWN_LINKS_FILE} lists the links of postings already saved, one per line: skip them
+(don't fetch their descriptions, leave them out of the CSV).
 
 When the CSV is complete (or the portal has no open positions: write just the
 header row), reply with the single word DONE and no code block."""
@@ -225,14 +231,16 @@ def build_portal_search_agent(model: BaseChatModel | None = None):
 
 
 def search_portals(
-    agent, portals: list[dict], sandbox_config: SandboxConfig | None = None
-) -> tuple[pd.DataFrame, list[dict]]:
+    agent, portals: list[dict], sandbox_config: SandboxConfig | None = None, known: set[str] = frozenset()
+) -> tuple[pd.DataFrame, list[dict], int]:
     """Run the agent on every portal in one shared sandbox container.
 
-    Returns (DataFrame with COLUMNS, [{"portal", "error"}, ...]).
+    Returns (DataFrame with COLUMNS minus the known links, [{"portal", "error"}, ...],
+    number of known postings dropped).
     """
     rows, errors = [], []
     with SandboxSession(sandbox_config) as sbx:
+        sbx.run(f"cat > {KNOWN_LINKS_FILE} <<'KNOWN_EOF'\n{known_links_file(known)}KNOWN_EOF")
         for portal in portals:
             try:
                 out = agent.invoke(
@@ -244,16 +252,20 @@ def search_portals(
             except Exception as e:  # one broken portal shouldn't stop the sweep
                 errors.append({"portal": portal.get("name"), "error": str(e)})
     df = pd.DataFrame(rows, columns=COLUMNS).drop_duplicates("link", ignore_index=True)
-    return df, errors
+    df, skipped = drop_known(df, known)
+    return df, errors, skipped
 
 
-def make_portal_search_node(model: BaseChatModel | None = None, sandbox_config: SandboxConfig | None = None):
-    """LangGraph node for the parent (orchestrator) graph."""
+def make_portal_search_node(
+    model: BaseChatModel | None = None, sandbox_config: SandboxConfig | None = None, skip_known: bool = True
+):
+    """LangGraph node for the parent (orchestrator) graph; skip_known drops postings already in the DB."""
     agent = build_portal_search_agent(model)
 
     def portal_search(state: dict) -> dict:
-        df, errors = search_portals(agent, state.get("portals") or load_portals(), sandbox_config)
-        return {"positions": df, "portal_errors": errors}
+        known = load_known_links() if skip_known else set()
+        df, errors, skipped = search_portals(agent, state.get("portals") or load_portals(), sandbox_config, known)
+        return {"positions": df, "portal_errors": errors, "skipped_known": skipped}
 
     return portal_search
 
