@@ -14,17 +14,7 @@ psycopg[binary]            # psycopg 3: SQLAlchemy 2.1's default driver for post
 # --- Agents / LangGraph ---
 langchain-core==1.6.3
 langgraph==1.2.11
-langchain-huggingface==1.2.2
-
-# --- Local LLM (llmModel/) ---
-# torch is built for CUDA 12.6; install with:
-#   pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cu126
-torch==2.14.0
-transformers==5.17.0
-accelerate                 # required by transformers for device_map="cuda"
-tokenizers==0.23.2
-safetensors==0.8.0
-Jinja2==3.1.6              # chat_template.jinja
+langchain-ollama==1.1.0    # local LLM: gpt-oss-20b served by Ollama (just start_llm)
 
 # --- Data / utils ---
 pandas==3.0.6

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { BuildResumeData, BuildResumeErrors, BuildResumeResponses, CreateUserDocsFoldersData, CreateUserDocsFoldersResponses, GetAnalyticsData, GetAnalyticsResponses, GetAnalyticsRunData, GetAnalyticsRunErrors, GetAnalyticsRunResponses, GetJobData, GetJobErrors, GetJobResponses, GetKnowledgeRunData, GetKnowledgeRunErrors, GetKnowledgeRunResponses, GetResumeDraftData, GetResumeDraftErrors, GetResumeDraftResponses, GetRunData, GetRunErrors, GetRunResponses, GetUserDocsData, GetUserDocsResponses, HealthData, HealthResponses, ListJobsData, ListJobsErrors, ListJobsResponses, ListKnowledgeRunsData, ListKnowledgeRunsResponses, ListPortalsData, ListPortalsResponses, ListResumeDraftsData, ListResumeDraftsErrors, ListResumeDraftsResponses, ListRunsData, ListRunsResponses, ListTargetPositionsData, ListTargetPositionsResponses, RevertResumeDraftData, RevertResumeDraftErrors, RevertResumeDraftResponses, StartAnalyticsRunData, StartAnalyticsRunErrors, StartAnalyticsRunResponses, StartKnowledgeRunData, StartKnowledgeRunErrors, StartKnowledgeRunResponses, StartRunData, StartRunErrors, StartRunResponses, UpdateJobActionData, UpdateJobActionErrors, UpdateJobActionResponses, UpdateResumeDraftData, UpdateResumeDraftErrors, UpdateResumeDraftResponses } from './types.gen';
+import type { AddPortalData, AddPortalErrors, AddPortalResponses, AddTargetPositionData, AddTargetPositionErrors, AddTargetPositionResponses, BuildResumeData, BuildResumeErrors, BuildResumeResponses, CreateUserDocsFoldersData, CreateUserDocsFoldersResponses, GetAnalyticsData, GetAnalyticsResponses, GetAnalyticsRunData, GetAnalyticsRunErrors, GetAnalyticsRunResponses, GetJobData, GetJobErrors, GetJobResponses, GetKnowledgeRunData, GetKnowledgeRunErrors, GetKnowledgeRunResponses, GetResumeDraftData, GetResumeDraftErrors, GetResumeDraftResponses, GetRunData, GetRunErrors, GetRunResponses, GetUserDocsData, GetUserDocsResponses, HealthData, HealthResponses, ListJobsData, ListJobsErrors, ListJobsResponses, ListKnowledgeRunsData, ListKnowledgeRunsResponses, ListPortalsData, ListPortalsResponses, ListResumeDraftsData, ListResumeDraftsErrors, ListResumeDraftsResponses, ListRunsData, ListRunsResponses, ListTargetPositionsData, ListTargetPositionsResponses, RemovePortalData, RemovePortalErrors, RemovePortalResponses, RemoveTargetPositionData, RemoveTargetPositionErrors, RemoveTargetPositionResponses, RevertResumeDraftData, RevertResumeDraftErrors, RevertResumeDraftResponses, StartAnalyticsRunData, StartAnalyticsRunErrors, StartAnalyticsRunResponses, StartKnowledgeRunData, StartKnowledgeRunErrors, StartKnowledgeRunResponses, StartRunData, StartRunErrors, StartRunResponses, UpdateJobActionData, UpdateJobActionErrors, UpdateJobActionResponses, UpdateResumeDraftData, UpdateResumeDraftErrors, UpdateResumeDraftResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -28,8 +28,10 @@ export const listRuns = <ThrowOnError extends boolean = false>(options?: Options
 /**
  * Start Run
  *
- * Spins off the agents: searches the portals, scores the positions and saves them to the DB.
- * Returns immediately with a run id; poll GET /agents/runs/{run_id} for the result.
+ * Spins off the agents: searches the portals, scores the positions (plus any manual_positions)
+ * and saves them to the DB. portals None searches every enabled portal, [] none (then
+ * manual_positions must be given). Returns immediately with a run id; poll
+ * GET /agents/runs/{run_id} for its stage, logs and result.
  */
 export const startRun = <ThrowOnError extends boolean = false>(options: Options<StartRunData, ThrowOnError>): RequestResult<StartRunResponses, StartRunErrors, ThrowOnError> => (options.client ?? client).post<StartRunResponses, StartRunErrors, ThrowOnError>({
     url: '/agents/runs',
@@ -181,11 +183,57 @@ export const revertResumeDraft = <ThrowOnError extends boolean = false>(options:
 export const listPortals = <ThrowOnError extends boolean = false>(options?: Options<ListPortalsData, ThrowOnError>): RequestResult<ListPortalsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListPortalsResponses, unknown, ThrowOnError>({ url: '/agents/portals', ...options });
 
 /**
+ * Add Portal
+ *
+ * Adds a company careers page to portals.yml's tracked_companies (or re-enables it if it was
+ * dropped) so the next search covers it. Returns the enabled portal names.
+ */
+export const addPortal = <ThrowOnError extends boolean = false>(options: Options<AddPortalData, ThrowOnError>): RequestResult<AddPortalResponses, AddPortalErrors, ThrowOnError> => (options.client ?? client).post<AddPortalResponses, AddPortalErrors, ThrowOnError>({
+    url: '/agents/portals',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * List Target Positions
  *
  * Positive title_filter keywords in portals.yml: the positions the portal search targets.
  */
 export const listTargetPositions = <ThrowOnError extends boolean = false>(options?: Options<ListTargetPositionsData, ThrowOnError>): RequestResult<ListTargetPositionsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListTargetPositionsResponses, unknown, ThrowOnError>({ url: '/agents/portals/positions', ...options });
+
+/**
+ * Add Target Position
+ *
+ * Adds a keyword to portals.yml's title_filter.positive: postings whose title contains it are
+ * searched for. Returns the target positions.
+ */
+export const addTargetPosition = <ThrowOnError extends boolean = false>(options: Options<AddTargetPositionData, ThrowOnError>): RequestResult<AddTargetPositionResponses, AddTargetPositionErrors, ThrowOnError> => (options.client ?? client).post<AddTargetPositionResponses, AddTargetPositionErrors, ThrowOnError>({
+    url: '/agents/portals/positions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove Portal
+ *
+ * Drops a portal from the search: its portals.yml entry is kept but set to enabled: false.
+ * 404 if no enabled portal has that name. Returns the enabled portal names.
+ */
+export const removePortal = <ThrowOnError extends boolean = false>(options: Options<RemovePortalData, ThrowOnError>): RequestResult<RemovePortalResponses, RemovePortalErrors, ThrowOnError> => (options.client ?? client).delete<RemovePortalResponses, RemovePortalErrors, ThrowOnError>({ url: '/agents/portals/{name}', ...options });
+
+/**
+ * Remove Target Position
+ *
+ * Removes a keyword from portals.yml's title_filter.positive (422 if it is the last one,
+ * 404 if it isn't there). Returns the target positions.
+ */
+export const removeTargetPosition = <ThrowOnError extends boolean = false>(options: Options<RemoveTargetPositionData, ThrowOnError>): RequestResult<RemoveTargetPositionResponses, RemoveTargetPositionErrors, ThrowOnError> => (options.client ?? client).delete<RemoveTargetPositionResponses, RemoveTargetPositionErrors, ThrowOnError>({ url: '/agents/portals/positions/{keyword}', ...options });
 
 /**
  * List Jobs

@@ -21,7 +21,7 @@ How it works:
     3. One LLM call per section (`write_section()`), each given only the document
        kinds that section is written from. Projects get one call per projects/<name>/
        folder plus one for projects only the resumes / old knowledge base mention.
-       Section by section because max_new_tokens (4096) is shared with gpt-oss's
+       Section by section because num_predict (4096) is shared with gpt-oss's
        analysis channel and the whole knowledge base is longer than that.
     4. `write_quick_reference()` summarizes the compiled sections for qualification
        matching (strongest matches, gaps, experience level).
@@ -549,8 +549,10 @@ def _set_enabled(lines: list[str], entry: tuple[int, int], enabled: bool, note: 
     return lines[:end + 1] + [new] + lines[end + 1:]
 
 
-def apply_portal_changes(changes: dict, path: Path = PORTALS_FILE, dry_run: bool = False) -> dict:
-    """Applies the changes to portals.yml (unless dry_run) and returns the ones that aren't no-ops:
+def apply_portal_changes(changes: dict, path: Path = PORTALS_FILE, dry_run: bool = False,
+                         by: str = "the knowledge_base agent") -> dict:
+    """Applies the changes to portals.yml (unless dry_run) and returns the ones that aren't no-ops
+    (`by` names who made them in the notes left in the file):
     {"positive_added", "positive_removed", "negative_added", "negative_removed",
      "companies_added", "companies_enabled", "companies_disabled", "reasoning"}."""
     today = datetime.date.today().isoformat()
@@ -568,7 +570,7 @@ def apply_portal_changes(changes: dict, path: Path = PORTALS_FILE, dry_run: bool
         entries, last = _company_entries(lines)
         name = company["name"]
         if name.lower() in disabled:
-            lines = _set_enabled(lines, entries[name.lower()], True, f"re-enabled by the knowledge_base agent {today}")
+            lines = _set_enabled(lines, entries[name.lower()], True, f"re-enabled by {by} {today}")
             applied["companies_enabled"].append(name)
         elif name.lower() not in entries:
             indent = " " * _indent(lines[next(iter(entries.values()))[0]]) if entries else "  "
@@ -577,13 +579,13 @@ def apply_portal_changes(changes: dict, path: Path = PORTALS_FILE, dry_run: bool
                 f"{indent}- name: {json.dumps(name, ensure_ascii=False)}\n",
                 f"{indent}  careers_url: {json.dumps(company['careers_url'])}\n",
                 f"{indent}  enabled: true\n",
-                f"{indent}  # note: added by the knowledge_base agent {today}; check the careers_url\n",
+                f"{indent}  # note: added by {by} {today}; check the careers_url\n",
             ] + lines[last + 1:]
             applied["companies_added"].append(company)
     for name in changes.get("companies_drop", []):
         entries, _ = _company_entries(lines)
         if name.lower() in entries and name.lower() not in disabled:
-            lines = _set_enabled(lines, entries[name.lower()], False, f"dropped by the knowledge_base agent {today}")
+            lines = _set_enabled(lines, entries[name.lower()], False, f"dropped by {by} {today}")
             applied["companies_disabled"].append(name)
 
     if config["positive"] and len(config["positive"]) + len(applied["positive_added"]) == len(applied["positive_removed"]):

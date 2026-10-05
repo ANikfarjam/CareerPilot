@@ -14,9 +14,8 @@ How it works:
          {"type": "status", "state": "thinking"}   gpt-oss is in its analysis channel
          {"type": "token", "target": "chat" | "resume" | "side_projects", "text"}
          {"type": "result", "reply", "resume"?, "side_projects"?}   last event
-       The analysis channel is never sent: tokens flow once "assistantfinal"
-       appears (the marker `_final_channel` splits on); if it never does, the
-       whole reply is final.
+       The analysis channel is never sent: Ollama streams it as reasoning
+       (chunk.text stays empty), so tokens flow once the final answer starts.
 
 Orchestration:
   WS /agents/resume/drafts/{draft_id}/chat (apis/reposetories/agents.py) runs
@@ -31,7 +30,6 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from agents.resume_builder.context import render_context, select_context
 
-FINAL_MARKER = "assistantfinal"
 HISTORY_TURNS = 6  # chat messages (user + assistant) sent back to the model
 DOC_TARGETS = ("resume", "side_projects")
 FENCE_OPEN = re.compile(r"^```(resume|side_projects)\s*$")
@@ -140,21 +138,16 @@ def stream_chat(model: BaseChatModel, draft: dict, job: dict, message: str) -> I
 
     draft is a db.dbOps.get_draft dict (its messages are the history); job is a load_job dict."""
     router = _Router()
-    raw, final_at = "", None  # final_at: index in raw where the final channel starts
+    writing = False
     yield {"type": "status", "state": "thinking"}
     for chunk in model.stream(build_messages(draft, job, message)):
-        raw += chunk.text
-        if final_at is None:
-            i = raw.find(FINAL_MARKER)
-            if i == -1:
+        text = chunk.text
+        if not writing:
+            text = text.lstrip()
+            if not text:  # still reasoning
                 continue
-            final_at = i + len(FINAL_MARKER)
+            writing = True
             yield {"type": "status", "state": "writing"}
-            yield from router.feed(raw[final_at:].lstrip())
-        else:
-            yield from router.feed(chunk.text)
-    if final_at is None:  # no analysis channel: the whole reply is the answer
-        yield {"type": "status", "state": "writing"}
-        yield from router.feed(raw.strip())
+        yield from router.feed(text)
     yield from router.close()
     yield router.result()

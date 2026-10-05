@@ -9,9 +9,15 @@
 .env.*
 *.env
 llmModel/
+.ollama/
+.ollama.pid
+.ollama.log
 Docs/
 
 # Backend process files (just start_app)
 .api.pid
 .api.log
 nohup.out
+
+.ollama.log
+.ollama.pid

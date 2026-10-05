@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from db.models import Action, JobBoard, JobType
 
@@ -25,11 +25,36 @@ class RunStatus(str, Enum):
     failed = "failed"
 
 
+class ManualPosition(Schema):
+    """A posting the user adds by hand (AgentRunRequest.manual_positions, POST /agents/runs).
+    It skips portal_search but is scored by qualification_check and saved by db_ingestion,
+    so it needs a description to score."""
+    company: str = Field(min_length=1)
+    position: str = Field(min_length=1)
+    link: str = Field(min_length=1)  # also the job's id (uuid5 of the link), see dbingestion.job_id
+    job_type: JobType = JobType.unknown
+    description: str = Field(min_length=1)
+    post_id: Optional[str] = None
+
+
 class AgentRunRequest(Schema):
-    """Body of POST /agents/runs: which portals to search and which sandbox to use."""
-    # Portal names from portals.yml; None or empty = all enabled portals.
+    """Body of POST /agents/runs: which portals to search, postings to add by hand and which sandbox to use."""
+    # Portal names from portals.yml; None = all enabled portals, [] = none (only manual_positions).
     portals: Optional[list[str]] = None
-    sandbox: Literal["sandbox", "sandbox-cpu"] = "sandbox"
+    manual_positions: list[ManualPosition] = []
+    # Scraping needs no GPU (and Ollama holds the VRAM); "sandbox" needs the NVIDIA Container Toolkit.
+    sandbox: Literal["sandbox", "sandbox-cpu"] = "sandbox-cpu"
+
+
+RunStage = Literal["portal_search", "qualification_check", "db_ingestion"]
+
+
+class RunLog(Schema):
+    """One progress line of a graph node (AgentRun.logs), e.g. which portal is being searched."""
+    stage: RunStage
+    level: Literal["info", "success", "error"]
+    message: str
+    at: datetime
 
 
 class AgentRunSummary(Schema):
@@ -53,8 +78,21 @@ class AgentRun(Schema):
     created_at: datetime
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
+    stage: Optional[RunStage] = None  # graph node currently running (the last one once finished)
+    logs: list[RunLog] = []  # progress of each node, oldest first (the last MAX_RUN_LOGS)
     summary: Optional[AgentRunSummary] = None
     error: Optional[str] = None
+
+
+class PortalCreate(Schema):
+    """Body of POST /agents/portals: a company careers page to add to portals.yml's tracked_companies."""
+    name: str = Field(min_length=1)
+    careers_url: str = Field(pattern=r"^https?://")
+
+
+class TargetPositionCreate(Schema):
+    """Body of POST /agents/target-positions: a title keyword to add to portals.yml's title_filter.positive."""
+    keyword: str = Field(min_length=1)
 
 
 class SideProject(Schema):
@@ -165,7 +203,7 @@ class AnalyticsReport(Schema):
 class AnalyticsRunRequest(Schema):
     """Body of POST /agents/analytics/runs: which sandbox the analytics agent runs its code in.
     It only needs pandas, so sandbox-cpu is enough."""
-    sandbox: Literal["sandbox", "sandbox-cpu"] = "sandbox"
+    sandbox: Literal["sandbox", "sandbox-cpu"] = "sandbox-cpu"
 
 
 class AnalyticsRun(Schema):

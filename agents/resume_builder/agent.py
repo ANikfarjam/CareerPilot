@@ -14,7 +14,7 @@ How it works:
     3. `write_resume()` has the model write a Markdown resume tailored to the posting.
     4. `recommend_side_projects()` has the model propose side projects that close
        the posting's skill gaps.
-  Two calls instead of one: max_new_tokens is shared with gpt-oss's analysis
+  Two calls instead of one: num_predict is shared with gpt-oss's analysis
   channel, and a resume plus recommendations in one reply risks being cut off.
 
 Orchestration:

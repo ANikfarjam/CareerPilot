@@ -11,11 +11,12 @@ from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from db import dbOps
 from apis.schemas import (AgentRun, AgentRunRequest, AgentRunSummary, AnalyticsReport, AnalyticsRun,
-                          AnalyticsRunRequest, KnowledgeRun, KnowledgeRunRequest, PortalChanges,
-                          ResumeDraftOut, ResumeDraftSummary, ResumeDraftUpdate, ResumeReport, RunStatus,
-                          UserDocs)
+                          AnalyticsRunRequest, KnowledgeRun, KnowledgeRunRequest, PortalChanges, PortalCreate,
+                          ResumeDraftOut, ResumeDraftSummary, ResumeDraftUpdate, ResumeReport, RunLog, RunStatus,
+                          TargetPositionCreate, UserDocs)
 from agents.analytics.agent import build_tables, load_jobs
-from agents.knowledge_base.agent import KINDS, KNOWLEDGE_FILE, USER_DOCS_DIR, create_folders, run_knowledge_base, scan_user_docs
+from agents.knowledge_base.agent import (KINDS, KNOWLEDGE_FILE, USER_DOCS_DIR, apply_portal_changes, create_folders,
+                                        run_knowledge_base, scan_user_docs)
 from agents.resume_builder.agent import load_job, run_resume_builder
 from agents.resume_builder.chat import stream_chat
 from agents.graph.analytic_graph import build_analytic_graph
@@ -34,6 +35,7 @@ ANALYTICS_RUNS: dict[uuid.UUID, AnalyticsRun] = {}
 KNOWLEDGE_RUNS: dict[uuid.UUID, KnowledgeRun] = {}
 # One run at a time: every run shares the local LLM and a sandbox container.
 RUN_LOCK = threading.Lock()
+MAX_RUN_LOGS = 500  # AgentRun.logs keeps the newest lines so polling stays small
 
 
 @functools.lru_cache(maxsize=2)
@@ -52,12 +54,21 @@ def _now() -> datetime.datetime:
     return datetime.datetime.now(datetime.UTC)
 
 
-def _run_graph(run_id: uuid.UUID, portals: list[dict]) -> None:
-    """Background task: portal_search -> qualification_check -> db_ingestion, then records the outcome."""
+def _run_graph(run_id: uuid.UUID, portals: list[dict], manual_positions: list[dict]) -> None:
+    """Background task: portal_search -> qualification_check -> db_ingestion, then records the outcome.
+    The nodes' progress lines (agents/utils/progress.py) are collected into run.logs as they stream."""
     run = RUNS[run_id]
     try:
         run.status, run.started_at = RunStatus.running, _now()
-        state = _graph(run.sandbox).invoke({"portals": portals})
+        state: dict = {}
+        stream = _graph(run.sandbox).stream({"portals": portals, "manual_positions": manual_positions},
+                                            stream_mode=["custom", "values"])
+        for mode, chunk in stream:
+            if mode == "values":
+                state = chunk
+            else:
+                run.stage = chunk["stage"]
+                run.logs = (run.logs + [RunLog(**chunk, at=_now())])[-MAX_RUN_LOGS:]
         scored = state.get("scored_positions")  # None when no positions were found
         run.summary = AgentRunSummary(
             positions=len(state.get("positions", [])),
@@ -79,27 +90,32 @@ def _run_graph(run_id: uuid.UUID, portals: list[dict]) -> None:
 
 @AGENTS_ROUTER.post("/runs", response_model=AgentRun, status_code=fastapi.status.HTTP_202_ACCEPTED)
 def start_run(body: AgentRunRequest, background_tasks: fastapi.BackgroundTasks):
-    """Spins off the agents: searches the portals, scores the positions and saves them to the DB.
-    Returns immediately with a run id; poll GET /agents/runs/{run_id} for the result."""
+    """Spins off the agents: searches the portals, scores the positions (plus any manual_positions)
+    and saves them to the DB. portals None searches every enabled portal, [] none (then
+    manual_positions must be given). Returns immediately with a run id; poll
+    GET /agents/runs/{run_id} for its stage, logs and result."""
     portals = load_portals()
-    if body.portals:
+    if body.portals is not None:
         wanted = {name.strip().lower() for name in body.portals}
         portals = [p for p in portals if p["name"].lower() in wanted]
-        if not portals:
+        if body.portals and not portals:
             raise fastapi.HTTPException(status_code=404, detail=f"no enabled portal matches {body.portals}")
+    if not portals and not body.manual_positions:
+        raise fastapi.HTTPException(status_code=422, detail="choose at least one portal or add a position manually")
 
     if not RUN_LOCK.acquire(blocking=False):
         raise fastapi.HTTPException(status_code=409, detail="an agent run is already in progress")
 
+    manual = [p.model_dump(mode="json") for p in body.manual_positions]
     run = AgentRun(
         id=uuid.uuid4(),
         status=RunStatus.queued,
-        portals=[p["name"] for p in portals],
+        portals=[p["name"] for p in portals] + [f"{p['company']} (manual)" for p in manual],
         sandbox=body.sandbox,
         created_at=_now(),
     )
     RUNS[run.id] = run
-    background_tasks.add_task(_run_graph, run.id, portals)  # releases RUN_LOCK when done
+    background_tasks.add_task(_run_graph, run.id, portals, manual)  # releases RUN_LOCK when done
     return run
 
 
@@ -401,4 +417,51 @@ def list_portals():
 @AGENTS_ROUTER.get("/portals/positions", response_model=list[str])
 def list_target_positions():
     """Positive title_filter keywords in portals.yml: the positions the portal search targets."""
+    return load_target_positions()
+
+
+def _edit_portals(changes: dict) -> dict:
+    """Applies changes to portals.yml (knowledge_base.apply_portal_changes, which keeps its comments).
+    409 while an agent run is using portals.yml, 422 if the edit is invalid."""
+    if not RUN_LOCK.acquire(blocking=False):
+        raise fastapi.HTTPException(status_code=409, detail="an agent run is in progress; edit portals when it finishes")
+    try:
+        return apply_portal_changes(changes, by="the user (search page)")
+    except ValueError as e:
+        raise fastapi.HTTPException(status_code=422, detail=str(e))
+    finally:
+        RUN_LOCK.release()
+
+
+@AGENTS_ROUTER.post("/portals", response_model=list[str])
+def add_portal(body: PortalCreate):
+    """Adds a company careers page to portals.yml's tracked_companies (or re-enables it if it was
+    dropped) so the next search covers it. Returns the enabled portal names."""
+    _edit_portals({"companies_add": [{"name": body.name.strip(), "careers_url": body.careers_url.strip()}]})
+    return list_portals()
+
+
+@AGENTS_ROUTER.delete("/portals/{name}", response_model=list[str])
+def remove_portal(name: str):
+    """Drops a portal from the search: its portals.yml entry is kept but set to enabled: false.
+    404 if no enabled portal has that name. Returns the enabled portal names."""
+    if not _edit_portals({"companies_drop": [name]})["companies_disabled"]:
+        raise fastapi.HTTPException(status_code=404, detail=f"no enabled portal named {name!r}")
+    return list_portals()
+
+
+@AGENTS_ROUTER.post("/portals/positions", response_model=list[str])
+def add_target_position(body: TargetPositionCreate):
+    """Adds a keyword to portals.yml's title_filter.positive: postings whose title contains it are
+    searched for. Returns the target positions."""
+    _edit_portals({"positive_add": [body.keyword.strip()]})
+    return load_target_positions()
+
+
+@AGENTS_ROUTER.delete("/portals/positions/{keyword:path}", response_model=list[str])
+def remove_target_position(keyword: str):
+    """Removes a keyword from portals.yml's title_filter.positive (422 if it is the last one,
+    404 if it isn't there). Returns the target positions."""
+    if not _edit_portals({"positive_remove": [keyword]})["positive_removed"]:
+        raise fastapi.HTTPException(status_code=404, detail=f"no target position {keyword!r}")
     return load_target_positions()

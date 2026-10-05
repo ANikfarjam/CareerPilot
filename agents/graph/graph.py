@@ -42,7 +42,8 @@ OUTPUT_DIR = PROJECT_ROOT / "results"
 
 
 class CareerState(TypedDict, total=False):
-    portals: list[dict]  # input; empty = all enabled tracked_companies in portals.yml
+    portals: list[dict]  # input; missing = all enabled tracked_companies in portals.yml, [] = none
+    manual_positions: list[dict]  # input; postings added by hand (apis.schemas.ManualPosition), scored and saved too
     positions: pd.DataFrame
     portal_errors: list[dict]
     skipped_known: int  # postings already in the DB, dropped before scoring

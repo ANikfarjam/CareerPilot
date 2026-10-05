@@ -37,7 +37,8 @@ async function unwrap<T>(call: Promise<{ data?: T; error?: unknown; response?: R
 // Agent runs: portal_search -> qualification_check -> db_ingestion
 // ─────────────────────────────────────────────────────────
 
-// Starts a job search; 409 while another agent run is in progress.
+// Starts a job search (plus any manual_positions, scored and saved by the same run);
+// 409 while another agent run is in progress.
 export const startRun = (body: AgentRunRequest = {}) => unwrap(sdk.startRun({ body }))
 
 export const listRuns = () => unwrap(sdk.listRuns())
@@ -49,6 +50,19 @@ export const listPortals = () => unwrap(sdk.listPortals())
 
 // Positive title_filter keywords from portals.yml: the positions the search targets.
 export const listTargetPositions = () => unwrap(sdk.listTargetPositions())
+
+// Edit portals.yml; each returns the updated list. 409 while an agent run is in progress.
+export const addPortal = (name: string, careersUrl: string) =>
+  unwrap(sdk.addPortal({ body: { name, careers_url: careersUrl } }))
+
+// The portal stays in portals.yml with enabled: false.
+export const removePortal = (name: string) => unwrap(sdk.removePortal({ path: { name } }))
+
+export const addTargetPosition = (keyword: string) => unwrap(sdk.addTargetPosition({ body: { keyword } }))
+
+// 422 if it is the last target position.
+export const removeTargetPosition = (keyword: string) =>
+  unwrap(sdk.removeTargetPosition({ path: { keyword } }))
 
 // ─────────────────────────────────────────────────────────
 // Analytics

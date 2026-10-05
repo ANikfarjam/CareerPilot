@@ -23,6 +23,7 @@ import pandas as pd
 
 from agents.portal_search.agent import JOB_TYPES
 from agents.qualification_check.agent import _text
+from agents.utils.progress import stage_logger
 from db.dbOps import upsert_jobs
 from db.documents import write_description
 
@@ -82,12 +83,17 @@ def make_db_ingestion_node():
         scored = state.get("scored_positions")
         if not isinstance(scored, pd.DataFrame):  # list of row dicts (checkpointed parent graph)
             scored = pd.DataFrame(scored or [])
+        log = stage_logger("db_ingestion")
         jobs, errors = positions_to_jobs(scored)
+        log("info", f"Saving {len(jobs)} scored positions")
         errors += save_descriptions(jobs)
         try:
             ingested = upsert_jobs(jobs)
+            log("success", f"Saved {ingested} jobs")
         except Exception as e:  # keep the run's results (CSV) even if the DB is down
             ingested, errors = 0, errors + [{"link": None, "error": f"database write failed: {e}"}]
+        for error in errors:
+            log("error", f"{error['link'] or 'Database'}: {error['error']}")
         return {"ingested": ingested, "ingestion_errors": errors}
 
     return db_ingestion

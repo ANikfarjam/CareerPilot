@@ -135,9 +135,10 @@ def upsert_jobs(jobs: list[dict]):
                 "update_at": datetime.datetime.now(datetime.UTC),
             },
         )
-        result = session.execute(stmt)
+        # ORM bulk inserts report rowcount -1, so count the returned ids instead
+        upserted = len(session.execute(stmt.returning(models.JobBoard.id)).all())
         session.commit()
-        return result.rowcount
+        return upserted
     except Exception:
         session.rollback()
         raise

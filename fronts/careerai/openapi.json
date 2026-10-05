@@ -35,7 +35,7 @@
           "agents"
         ],
         "summary": "Start Run",
-        "description": "Spins off the agents: searches the portals, scores the positions and saves them to the DB.\nReturns immediately with a run id; poll GET /agents/runs/{run_id} for the result.",
+        "description": "Spins off the agents: searches the portals, scores the positions (plus any manual_positions)\nand saves them to the DB. portals None searches every enabled portal, [] none (then\nmanual_positions must be given). Returns immediately with a run id; poll\nGET /agents/runs/{run_id} for its stage, logs and result.",
         "operationId": "start_run",
         "requestBody": {
           "content": {
@@ -649,6 +649,50 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Add Portal",
+        "description": "Adds a company careers page to portals.yml's tracked_companies (or re-enables it if it was\ndropped) so the next search covers it. Returns the enabled portal names.",
+        "operationId": "add_portal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Add Portal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/agents/portals/positions": {
@@ -670,6 +714,144 @@
                   },
                   "type": "array",
                   "title": "Response List Target Positions"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Add Target Position",
+        "description": "Adds a keyword to portals.yml's title_filter.positive: postings whose title contains it are\nsearched for. Returns the target positions.",
+        "operationId": "add_target_position",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TargetPositionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Add Target Position"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/portals/{name}": {
+      "delete": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Remove Portal",
+        "description": "Drops a portal from the search: its portals.yml entry is kept but set to enabled: false.\n404 if no enabled portal has that name. Returns the enabled portal names.",
+        "operationId": "remove_portal",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Remove Portal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/portals/positions/{keyword}": {
+      "delete": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Remove Target Position",
+        "description": "Removes a keyword from portals.yml's title_filter.positive (422 if it is the last one,\n404 if it isn't there). Returns the target positions.",
+        "operationId": "remove_target_position",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Keyword"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Remove Target Position"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1047,6 +1229,30 @@
             ],
             "title": "Finished At"
           },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "portal_search",
+                  "qualification_check",
+                  "db_ingestion"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "logs": {
+            "items": {
+              "$ref": "#/components/schemas/RunLog"
+            },
+            "type": "array",
+            "title": "Logs",
+            "default": []
+          },
           "summary": {
             "anyOf": [
               {
@@ -1078,6 +1284,8 @@
           "created_at",
           "started_at",
           "finished_at",
+          "stage",
+          "logs",
           "summary",
           "error"
         ],
@@ -1100,6 +1308,14 @@
             ],
             "title": "Portals"
           },
+          "manual_positions": {
+            "items": {
+              "$ref": "#/components/schemas/ManualPosition"
+            },
+            "type": "array",
+            "title": "Manual Positions",
+            "default": []
+          },
           "sandbox": {
             "type": "string",
             "enum": [
@@ -1107,12 +1323,12 @@
               "sandbox-cpu"
             ],
             "title": "Sandbox",
-            "default": "sandbox"
+            "default": "sandbox-cpu"
           }
         },
         "type": "object",
         "title": "AgentRunRequest",
-        "description": "Body of POST /agents/runs: which portals to search and which sandbox to use."
+        "description": "Body of POST /agents/runs: which portals to search, postings to add by hand and which sandbox to use."
       },
       "AgentRunSummary": {
         "properties": {
@@ -1337,7 +1553,7 @@
               "sandbox-cpu"
             ],
             "title": "Sandbox",
-            "default": "sandbox"
+            "default": "sandbox-cpu"
           }
         },
         "type": "object",
@@ -2032,6 +2248,54 @@
         "title": "KnowledgeRunRequest",
         "description": "Body of POST /agents/knowledge/runs: which kinds of documents to build the knowledge base\nfrom (default: every kind) and whether to tune portals.yml to it afterwards."
       },
+      "ManualPosition": {
+        "properties": {
+          "company": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Company"
+          },
+          "position": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Position"
+          },
+          "link": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Link"
+          },
+          "job_type": {
+            "$ref": "#/components/schemas/JobType",
+            "default": "unknown"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Description"
+          },
+          "post_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company",
+          "position",
+          "link",
+          "description"
+        ],
+        "title": "ManualPosition",
+        "description": "A posting the user adds by hand (AgentRunRequest.manual_positions, POST /agents/runs).\nIt skips portal_search but is scored by qualification_check and saved by db_ingestion,\nso it needs a description to score."
+      },
       "NearMissJob": {
         "properties": {
           "company_name": {
@@ -2162,6 +2426,27 @@
         ],
         "title": "PortalChanges",
         "description": "What the knowledge base agent changed in portals.yml (title_filter keywords and tracked companies)."
+      },
+      "PortalCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name"
+          },
+          "careers_url": {
+            "type": "string",
+            "pattern": "^https?://",
+            "title": "Careers Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "careers_url"
+        ],
+        "title": "PortalCreate",
+        "description": "Body of POST /agents/portals: a company careers page to add to portals.yml's tracked_companies."
       },
       "ResumeDraftOut": {
         "properties": {
@@ -2381,6 +2666,46 @@
         "title": "ResumeReport",
         "description": "Response of POST /agents/resume/{job_id}: a Markdown resume tailored to the saved\njob, plus Markdown side-project ideas that close its skill gaps. Saved as the resume\ndraft draft_id, which the resume chat edits."
       },
+      "RunLog": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "portal_search",
+              "qualification_check",
+              "db_ingestion"
+            ],
+            "title": "Stage"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "info",
+              "success",
+              "error"
+            ],
+            "title": "Level"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "level",
+          "message",
+          "at"
+        ],
+        "title": "RunLog",
+        "description": "One progress line of a graph node (AgentRun.logs), e.g. which portal is being searched."
+      },
       "RunStatus": {
         "type": "string",
         "enum": [
@@ -2481,6 +2806,21 @@
         ],
         "title": "SkillGap",
         "description": "Row of AnalyticsReport.skill_gaps: a skill missing across the near-miss jobs\n(agents/analytics/agent.py SKILL_GAP_COLUMNS)."
+      },
+      "TargetPositionCreate": {
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Keyword"
+          }
+        },
+        "type": "object",
+        "required": [
+          "keyword"
+        ],
+        "title": "TargetPositionCreate",
+        "description": "Body of POST /agents/target-positions: a title keyword to add to portals.yml's title_filter.positive."
       },
       "UserDocs": {
         "properties": {

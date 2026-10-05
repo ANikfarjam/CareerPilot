@@ -38,15 +38,18 @@ pip install rust-just   # or install just with your package manager
 just install_libraries
 ```
 
-`install_libraries` creates a `.myenv` virtual environment, installs PyTorch (CUDA 12.6) and `requirements.txt` into it, and runs `pnpm install` for the frontend.
+`install_libraries` installs `requirements.txt` into the `.myenv` virtual environment and runs `pnpm install` for the frontend.
 
 ### 2. Download the model
 
-CareerAI currently runs OpenAI's [gpt-oss-120b](https://huggingface.co/openai/gpt-oss-120b) locally. Download it from Hugging Face into the `./llmModel/` directory:
+CareerAI runs OpenAI's [gpt-oss-20b](https://huggingface.co/openai/gpt-oss-20b) locally through [Ollama](https://ollama.com). Its MoE experts that don't fit in VRAM run on the CPU, so it works on an 8 GB GPU with 16 GB of RAM. Install Ollama into `./.ollama` and pull the model (~13 GB) into `./llmModel/`:
 
 ```bash
+just install_ollama
 just download_model
 ```
+
+`just start_llm` / `just stop_llm` start and stop the Ollama server; it has to be running before `just start_app`.
 
 ### 3. Build the agent sandbox
 

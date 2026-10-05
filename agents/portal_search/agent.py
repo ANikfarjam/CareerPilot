@@ -3,8 +3,8 @@ This agent search all the portals from the portals.yaml. Then extracts all the a
 Ther result afterword is passed to avluation agent via lang graph.
 
 How it works (code-as-action agent):
-  The local LLM (ChatHuggingFace over a transformers pipeline) can't emit
-  native tool calls, so instead of tools it writes shell commands. Each turn,
+  The local LLM (gpt-oss-20b served by Ollama) isn't relied on for native
+  tool calls, so instead of tools it writes shell commands. Each turn,
   the ```bash block in its reply runs in the sandbox container (`docker exec
   ... bash -s`, see agents/sandbox) and the stdout/stderr/exit code is sent back
   as the next message, so the model fixes its script from what it echoes.
@@ -25,7 +25,8 @@ Orchestration:
     listed in the sandbox's known_links.txt and dropped from the DataFrame.
   - `make_portal_search_node()` returns a plain LangGraph node for the parent
     graph: reads `portals` from the parent state (default: all enabled
-    tracked_companies in portals.yml) and returns {"positions": DataFrame,
+    tracked_companies in portals.yml; [] searches none) plus any
+    `manual_positions` the user added by hand, and returns {"positions": DataFrame,
     "portal_errors", "skipped_known"}; skip_known=False rescans saved postings. A DataFrame is not JSON-serializable, so convert it
     (`df.to_dict("records")`) if the parent graph uses a checkpointer.
 """
@@ -48,6 +49,7 @@ from langgraph.types import Command
 
 from agents.sandbox import SandboxConfig, SandboxSession
 from agents.utils.known_jobs import KNOWN_LINKS_FILE, drop_known, known_links_file, load_known_links
+from agents.utils.progress import Log, no_log, stage_logger
 
 PORTALS_FILE = Path(__file__).resolve().parents[1] / "utils" / "portals.yml"
 MAX_STEPS = 12  # model turns per portal
@@ -231,40 +233,72 @@ def build_portal_search_agent(model: BaseChatModel | None = None):
 
 
 def search_portals(
-    agent, portals: list[dict], sandbox_config: SandboxConfig | None = None, known: set[str] = frozenset()
+    agent,
+    portals: list[dict],
+    sandbox_config: SandboxConfig | None = None,
+    known: set[str] = frozenset(),
+    log: Log = no_log,
 ) -> tuple[pd.DataFrame, list[dict], int]:
     """Run the agent on every portal in one shared sandbox container.
 
     Returns (DataFrame with COLUMNS minus the known links, [{"portal", "error"}, ...],
-    number of known postings dropped).
+    number of known postings dropped). log(level, message) reports each portal's progress.
     """
     rows, errors = [], []
-    with SandboxSession(sandbox_config) as sbx:
-        sbx.run(f"cat > {KNOWN_LINKS_FILE} <<'KNOWN_EOF'\n{known_links_file(known)}KNOWN_EOF")
-        for portal in portals:
-            try:
-                out = agent.invoke(
-                    {"portal": portal},
-                    context=PortalSearchContext(sandbox=sbx),
-                    config={"recursion_limit": 4 * MAX_STEPS + 10},
-                )
-                rows += out["positions"]
-            except Exception as e:  # one broken portal shouldn't stop the sweep
-                errors.append({"portal": portal.get("name"), "error": str(e)})
+    if portals:  # no container needed when only manual positions are run
+        with SandboxSession(sandbox_config) as sbx:
+            sbx.run(f"cat > {KNOWN_LINKS_FILE} <<'KNOWN_EOF'\n{known_links_file(known)}KNOWN_EOF")
+            for n, portal in enumerate(portals, 1):
+                name = portal.get("name")
+                log("info", f"Searching {name} ({n}/{len(portals)})")
+                try:
+                    out = agent.invoke(
+                        {"portal": portal},
+                        context=PortalSearchContext(sandbox=sbx),
+                        config={"recursion_limit": 4 * MAX_STEPS + 10},
+                    )
+                    rows += out["positions"]
+                    log("success", f"{name}: {len(out['positions'])} matching postings")
+                except Exception as e:  # one broken portal shouldn't stop the sweep
+                    errors.append({"portal": name, "error": str(e)})
+                    log("error", f"{name} failed: {e}")
     df = pd.DataFrame(rows, columns=COLUMNS).drop_duplicates("link", ignore_index=True)
     df, skipped = drop_known(df, known)
+    if skipped:
+        log("info", f"Skipped {skipped} postings already saved")
     return df, errors, skipped
+
+
+def manual_rows(manual_positions: list[dict]) -> pd.DataFrame:
+    """Postings the user added by hand (apis.schemas.ManualPosition dicts) as COLUMNS rows."""
+    rows = [{
+        "company": p["company"],
+        "position": p["position"],
+        "descrition": p["description"],
+        "post_id": p.get("post_id"),
+        "link": p["link"],
+        "jobType": _job_type(p.get("job_type")),
+    } for p in manual_positions]
+    return pd.DataFrame(rows, columns=COLUMNS)
 
 
 def make_portal_search_node(
     model: BaseChatModel | None = None, sandbox_config: SandboxConfig | None = None, skip_known: bool = True
 ):
-    """LangGraph node for the parent (orchestrator) graph; skip_known drops postings already in the DB."""
+    """LangGraph node for the parent (orchestrator) graph; skip_known drops postings already in the DB.
+    The state's manual_positions are added after the search and never dropped as known, so they get re-scored."""
     agent = build_portal_search_agent(model)
 
     def portal_search(state: dict) -> dict:
-        known = load_known_links() if skip_known else set()
-        df, errors, skipped = search_portals(agent, state.get("portals") or load_portals(), sandbox_config, known)
+        log = stage_logger("portal_search")
+        portals = state["portals"] if state.get("portals") is not None else load_portals()  # [] = only manual positions
+        known = load_known_links() if skip_known and portals else set()
+        df, errors, skipped = search_portals(agent, portals, sandbox_config, known, log)
+        if manual := state.get("manual_positions"):
+            df = pd.concat([df, manual_rows(manual)], ignore_index=True).drop_duplicates("link", keep="last", ignore_index=True)
+            log("info", f"Added {len(manual)} manual position{'s' if len(manual) != 1 else ''}")
+        found = f"Found {len(df)} new position{'s' if len(df) != 1 else ''}" if len(df) else "No new positions; nothing to score"
+        log("success" if len(df) else "info", found)
         return {"positions": df, "portal_errors": errors, "skipped_known": skipped}
 
     return portal_search
@@ -298,8 +332,9 @@ def _job_type(value) -> str:
 
 
 def _final_channel(text: str) -> str:
-    # gpt-oss (harmony format) decodes as "analysis...assistantfinal...";
-    # keep only the final answer so reasoning doesn't pile up in the history.
+    # Ollama already strips gpt-oss's analysis channel (reasoning=True in
+    # langchainConfig); this guards against a raw harmony "analysis...assistantfinal..."
+    # reply so reasoning doesn't pile up in the history.
     return text.rsplit("assistantfinal", 1)[-1].strip()
 
 

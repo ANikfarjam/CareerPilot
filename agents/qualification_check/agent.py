@@ -36,6 +36,7 @@ from langgraph.graph.message import add_messages
 from langgraph.types import Command
 
 from agents.portal_search.agent import COLUMNS, _final_channel
+from agents.utils.progress import Log, no_log, stage_logger
 
 KNOWLEDGE_FILE = Path(__file__).resolve().parents[2] / "Docs" / "user_docs" / "user_knowledge.md"
 MAX_ATTEMPTS = 3  # model turns per posting (first try + fixes)
@@ -161,23 +162,30 @@ def build_qualification_agent(model: BaseChatModel | None = None, knowledge: str
     return graph.compile()
 
 
-def evaluate_positions(agent, positions: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
+def evaluate_positions(agent, positions: pd.DataFrame, log: Log = no_log) -> tuple[pd.DataFrame, list[dict]]:
     """Score every posting with the agent.
 
     Returns (positions + SCORE_COLUMNS sorted by score, best first; [{"link", "error"}, ...]).
     Postings without a description, or that fail, keep an empty score.
+    log(level, message) reports each posting's progress.
     """
     results, errors = [], []
-    for job in positions.to_dict("records"):
+    jobs = positions.to_dict("records")
+    for n, job in enumerate(jobs, 1):
         result = {}
+        title = f"{_text(job.get('position')) or 'Untitled'} @ {_text(job.get('company')) or 'unknown'}"
         if not _text(job.get("descrition")):
             errors.append({"link": job.get("link"), "error": "no job description to extract requirements from"})
+            log("error", f"{title}: no description, skipped ({n}/{len(jobs)})")
         else:
+            log("info", f"Scoring {title} ({n}/{len(jobs)})")
             try:
                 out = agent.invoke({"job": job}, config={"recursion_limit": 3 * MAX_ATTEMPTS + 5})
                 result = out["result"]
+                log("success", f"{title}: {result.get('score')}/10")
             except Exception as e:  # one bad posting shouldn't stop the run
                 errors.append({"link": job.get("link"), "error": str(e)})
+                log("error", f"{title} failed: {e}")
         results.append({c: result.get(c) for c in SCORE_COLUMNS})
 
     scored = pd.concat([positions.reset_index(drop=True), pd.DataFrame(results, columns=SCORE_COLUMNS)], axis=1)
@@ -193,7 +201,7 @@ def make_qualification_node(model: BaseChatModel | None = None, knowledge_file: 
         positions = state.get("positions")
         if not isinstance(positions, pd.DataFrame):  # list of row dicts (checkpointed parent graph)
             positions = pd.DataFrame(positions or [], columns=COLUMNS)
-        df, errors = evaluate_positions(agent, positions)
+        df, errors = evaluate_positions(agent, positions, stage_logger("qualification_check"))
         return {"scored_positions": df, "qualification_errors": errors}
 
     return qualification_check

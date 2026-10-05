@@ -1,13 +1,43 @@
-# Creates the .myenv virtualenv and installs the Python dependencies (torch from the CUDA 12.6 index).
+# Puts the .myenv virtualenv first on PATH so recipes find uvicorn, python, hf, ...
+# without the shell having to activate it first.
+export PATH := justfile_directory() + "/.myenv/bin:" + env_var("PATH")
+
+# Installs the Python dependencies into .myenv and the frontend packages.
 install_libraries:
     #!/usr/bin/env bash
     pip install -r requirements.txt
     cd fronts/careerai && pnpm install
 
-# Downloads gpt-oss-120b from Hugging Face into ./llmModel.
-download_model:
-    pip install -U "huggingface_hub[cli]"
-    hf download openai/gpt-oss-120b --local-dir llmModel
+# Installs Ollama into ./.ollama (no sudo needed); it serves the local LLM.
+install_ollama:
+    #!/usr/bin/env bash
+    mkdir -p .ollama
+    curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.zst | tar --zstd -x -C .ollama
+    .ollama/bin/ollama --version
+
+# Starts the Ollama server in the background, keeping its models in ./llmModel.
+start_llm:
+    #!/usr/bin/env bash
+    if [ -f .ollama.pid ] && kill -0 "$(cat .ollama.pid)" 2>/dev/null; then
+        echo "Ollama already running (pid $(cat .ollama.pid))"; exit 0
+    fi
+    OLLAMA_MODELS="$PWD/llmModel" nohup .ollama/bin/ollama serve > .ollama.log 2>&1 &
+    echo $! > .ollama.pid
+    until curl -s localhost:11434/api/version > /dev/null; do sleep 1; done
+    echo "Ollama running (pid $(cat .ollama.pid)), log in .ollama.log"
+
+stop_llm:
+    #!/usr/bin/env bash
+    if [ -f .ollama.pid ] && kill "$(cat .ollama.pid)" 2>/dev/null; then
+        echo "Ollama stopped"
+    else
+        echo "Ollama is not running"
+    fi
+    rm -f .ollama.pid
+
+# Pulls gpt-oss-20b (~13 GB) into ./llmModel through the Ollama server.
+download_model: start_llm
+    .ollama/bin/ollama pull gpt-oss:20b
 
 # Builds the agents' code-execution sandbox image (GPU). Use build_sandbox_cpu without the NVIDIA toolkit.
 build_sandbox:
@@ -15,6 +45,27 @@ build_sandbox:
 
 build_sandbox_cpu:
     docker compose build sandbox-cpu
+
+# The toolkit install (Ubuntu/Debian) asks for sudo and is skipped if already installed.
+# Builds sandbox-cpu, installs the NVIDIA Container Toolkit, builds the GPU sandbox and checks it sees the GPU.
+setup_sandbox: build_sandbox_cpu
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v nvidia-ctk > /dev/null; then
+        curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+            | sudo gpg --dearmor --yes -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+        curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+            | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+            | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null
+        sudo apt-get update
+        sudo apt-get install -y nvidia-container-toolkit
+    fi
+    if ! docker info 2>/dev/null | grep -q "Runtimes:.*nvidia"; then
+        sudo nvidia-ctk runtime configure --runtime=docker
+        sudo systemctl restart docker
+    fi
+    docker compose build sandbox
+    docker compose run --rm sandbox nvidia-smi
 
 create_postgressDB:
     #!/usr/bin/env bash

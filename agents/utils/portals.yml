@@ -45,7 +45,56 @@ title_filter:
     - "agentic"
     - "ai agent"
     - "software engineer I"
+    - "software engineer"
     - "jr software engineer"
+    - "software engineer full stack"
+    # ML workflow / pipeline software engineering
+    - "ml workflow"
+    - "ml workflows"
+    - "machine learning workflow"
+    - "ml pipeline"
+    - "ml pipelines"
+    - "machine learning pipeline"
+    - "ml systems"
+    - "machine learning systems"
+    - "ml software engineer"
+    - "software engineer, machine learning"
+    - "software engineer, ml"
+    - "software engineer - machine learning"
+    - "software engineer - ml"
+    - "software engineer (machine learning)"
+    - "software engineer (ml)"
+    - "ml tooling"
+    - "ml developer tools"
+    - "ml orchestration"
+    - "workflow orchestration"
+    - "workflow engineer"
+    - "training infrastructure"
+    - "training platform"
+    - "model training"
+    - "model serving"
+    - "model deployment"
+    - "model ops"
+    - "modelops"
+    - "feature store"
+    - "feature platform"
+    - "ml data engineer"
+    - "ml data platform"
+    - "data pipeline engineer"
+    - "ml compute"
+    - "ml productivity"
+    - "MLOps engineer"
+    - "AI agent engineer"
+    - "LLM system engineer"
+    - "LLM infrastructure engineer"
+    - "bioinformatics engineer"
+    - "genomics engineer"
+    - "Data Scientist"
+    - "Backend Engineer"
+    - "Full-stack Engineer"
+    - "Cloud Engineer"
+    - "DevOps Engineer"
+    - "Data Engineering"
   negative:
     - "intern"
     - "director"
@@ -67,6 +116,10 @@ title_filter:
     - "business development"
     - "customer success"
     - "solutions consultant"
+    - "senior"
+    - "lead"
+    - "principal"
+    - "consultant"
   seniority_boost:
     - "senior"
     - "staff"
@@ -1109,3 +1162,58 @@ tracked_companies:
     careers_url: https://www.chime.com/careers
     api: https://boards-api.greenhouse.io/v1/boards/chime/jobs
     enabled: true
+
+  - name: "DNA Script"
+    careers_url: "https://www.dnascript.com/careers/"
+    enabled: true
+
+  - name: "Thermo Fisher Scientific"
+    careers_url: "https://careers.thermofisher.com/"
+    enabled: true
+
+  - name: "CureVac"
+    careers_url: "https://careers.curevac.com/"
+    enabled: true
+
+  - name: "Grail"
+    careers_url: "https://grl.co/careers/"
+    enabled: true
+
+  - name: "Sage Bionetworks"
+    careers_url: "https://www.sagebionetworks.org/about/careers"
+    enabled: true
+
+  - name: "Google AI"
+    careers_url: "https://careers.google.com/"
+    enabled: true
+
+  - name: "Cisco"
+    careers_url: "https://jobs.cisco.com/"
+    enabled: true
+
+  - name: "Intel AI"
+    careers_url: "https://jobs.intel.com/"
+    enabled: true
+
+  - name: "Qualcomm AI"
+    careers_url: "https://www.qualcomm.com/about/careers"
+    enabled: true
+
+  - name: "AMD AI"
+    careers_url: "https://www.amd.com/en/careers"
+    enabled: true
+
+  - name: "Oracle Cloud AI"
+    careers_url: "https://www.oracle.com/corporate/careers/"
+    enabled: true
+    # note: added by the knowledge_base agent 2026-10-05; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-05; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-05; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-05; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-05; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-05; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-04; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-04; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-04; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-04; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-04; check the careers_url

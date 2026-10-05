@@ -54,6 +54,14 @@ export type AgentRun = {
      * Finished At
      */
     finished_at: string | null;
+    /**
+     * Stage
+     */
+    stage: 'portal_search' | 'qualification_check' | 'db_ingestion' | null;
+    /**
+     * Logs
+     */
+    logs: Array<RunLog>;
     summary: AgentRunSummary | null;
     /**
      * Error
@@ -64,13 +72,17 @@ export type AgentRun = {
 /**
  * AgentRunRequest
  *
- * Body of POST /agents/runs: which portals to search and which sandbox to use.
+ * Body of POST /agents/runs: which portals to search, postings to add by hand and which sandbox to use.
  */
 export type AgentRunRequest = {
     /**
      * Portals
      */
     portals?: Array<string> | null;
+    /**
+     * Manual Positions
+     */
+    manual_positions?: Array<ManualPosition>;
     /**
      * Sandbox
      */
@@ -613,6 +625,37 @@ export type KnowledgeRunRequest = {
 };
 
 /**
+ * ManualPosition
+ *
+ * A posting the user adds by hand (AgentRunRequest.manual_positions, POST /agents/runs).
+ * It skips portal_search but is scored by qualification_check and saved by db_ingestion,
+ * so it needs a description to score.
+ */
+export type ManualPosition = {
+    /**
+     * Company
+     */
+    company: string;
+    /**
+     * Position
+     */
+    position: string;
+    /**
+     * Link
+     */
+    link: string;
+    job_type?: JobType;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Post Id
+     */
+    post_id?: string | null;
+};
+
+/**
  * NearMissJob
  *
  * Row of AnalyticsReport.near_miss_jobs: a job you're broadly qualified for that misses
@@ -682,6 +725,22 @@ export type PortalChanges = {
      * Reasoning
      */
     reasoning: string;
+};
+
+/**
+ * PortalCreate
+ *
+ * Body of POST /agents/portals: a company careers page to add to portals.yml's tracked_companies.
+ */
+export type PortalCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Careers Url
+     */
+    careers_url: string;
 };
 
 /**
@@ -821,6 +880,30 @@ export type ResumeReport = {
 };
 
 /**
+ * RunLog
+ *
+ * One progress line of a graph node (AgentRun.logs), e.g. which portal is being searched.
+ */
+export type RunLog = {
+    /**
+     * Stage
+     */
+    stage: 'portal_search' | 'qualification_check' | 'db_ingestion';
+    /**
+     * Level
+     */
+    level: 'info' | 'success' | 'error';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * At
+     */
+    at: string;
+};
+
+/**
  * RunStatus
  *
  * Lifecycle of a graph run: queued -> running -> succeeded | failed.
@@ -882,6 +965,18 @@ export type SkillGap = {
      * Companies
      */
     companies: string | null;
+};
+
+/**
+ * TargetPositionCreate
+ *
+ * Body of POST /agents/target-positions: a title keyword to add to portals.yml's title_filter.positive.
+ */
+export type TargetPositionCreate = {
+    /**
+     * Keyword
+     */
+    keyword: string;
 };
 
 /**
@@ -1404,6 +1499,33 @@ export type ListPortalsResponses = {
 
 export type ListPortalsResponse = ListPortalsResponses[keyof ListPortalsResponses];
 
+export type AddPortalData = {
+    body: PortalCreate;
+    path?: never;
+    query?: never;
+    url: '/agents/portals';
+};
+
+export type AddPortalErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddPortalError = AddPortalErrors[keyof AddPortalErrors];
+
+export type AddPortalResponses = {
+    /**
+     * Response Add Portal
+     *
+     * Successful Response
+     */
+    200: Array<string>;
+};
+
+export type AddPortalResponse = AddPortalResponses[keyof AddPortalResponses];
+
 export type ListTargetPositionsData = {
     body?: never;
     path?: never;
@@ -1421,6 +1543,97 @@ export type ListTargetPositionsResponses = {
 };
 
 export type ListTargetPositionsResponse = ListTargetPositionsResponses[keyof ListTargetPositionsResponses];
+
+export type AddTargetPositionData = {
+    body: TargetPositionCreate;
+    path?: never;
+    query?: never;
+    url: '/agents/portals/positions';
+};
+
+export type AddTargetPositionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddTargetPositionError = AddTargetPositionErrors[keyof AddTargetPositionErrors];
+
+export type AddTargetPositionResponses = {
+    /**
+     * Response Add Target Position
+     *
+     * Successful Response
+     */
+    200: Array<string>;
+};
+
+export type AddTargetPositionResponse = AddTargetPositionResponses[keyof AddTargetPositionResponses];
+
+export type RemovePortalData = {
+    body?: never;
+    path: {
+        /**
+         * Name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/agents/portals/{name}';
+};
+
+export type RemovePortalErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemovePortalError = RemovePortalErrors[keyof RemovePortalErrors];
+
+export type RemovePortalResponses = {
+    /**
+     * Response Remove Portal
+     *
+     * Successful Response
+     */
+    200: Array<string>;
+};
+
+export type RemovePortalResponse = RemovePortalResponses[keyof RemovePortalResponses];
+
+export type RemoveTargetPositionData = {
+    body?: never;
+    path: {
+        /**
+         * Keyword
+         */
+        keyword: string;
+    };
+    query?: never;
+    url: '/agents/portals/positions/{keyword}';
+};
+
+export type RemoveTargetPositionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveTargetPositionError = RemoveTargetPositionErrors[keyof RemoveTargetPositionErrors];
+
+export type RemoveTargetPositionResponses = {
+    /**
+     * Response Remove Target Position
+     *
+     * Successful Response
+     */
+    200: Array<string>;
+};
+
+export type RemoveTargetPositionResponse = RemoveTargetPositionResponses[keyof RemoveTargetPositionResponses];
 
 export type ListJobsData = {
     body?: never;
