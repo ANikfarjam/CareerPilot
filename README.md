@@ -6,6 +6,9 @@ CareerPilot is an open-source, AI-powered job search engine. Its agents query jo
 
 CareerPilot also tracks your applications, so you always know which jobs you've already applied to.
 
+[Screencast from 2026-10-06 15-18-12.webm](https://github.com/user-attachments/assets/07f2f70b-2b71-4538-bc32-dc7529ceebb5)
+
+
 ## Features
 
 - **Multi-portal search**: agents search across job-board APIs in a single run.
