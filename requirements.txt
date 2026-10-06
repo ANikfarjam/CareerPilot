@@ -1,4 +1,4 @@
-# CareerAI Python dependencies
+# CareerPilot Python dependencies
 # Install: python -m venv .myenv && .myenv/bin/pip install -r requirements.txt
 
 # --- API server ---

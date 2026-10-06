@@ -1,8 +1,8 @@
 # Introduction
 
-CareerAI, created by Ashkan Nikfarjam, is an open-source, AI-powered assistant for finding jobs and managing the application process. You don't have to search several job boards by hand and keep track of applications in a spreadsheet. CareerAI's agents find roles that match your skills, show you which ones you're really qualified for, and keep all of your applications in one place. The language model runs locally on your own hardware, so your personal data stays on your machine.
+CareerPilot, created by Ashkan Nikfarjam, is an open-source, AI-powered assistant for finding jobs and managing the application process. You don't have to search several job boards by hand and keep track of applications in a spreadsheet. CareerPilot's agents find roles that match your skills, show you which ones you're really qualified for, and keep all of your applications in one place. The language model runs locally on your own hardware, so your personal data stays on your machine.
 
-CareerAI is built from a set of specialized agents, and each one handles one part of the job search. 
+CareerPilot is built from a set of specialized agents, and each one handles one part of the job search. 
 
 * The **Portal Search** agent searches job-board APIs and collects openings that fit your profile. 
 * The **Qualification Check** agent reads each job description, pulls out the key technical requirements, compares them to your background, and scores each job from 0 to 10. It also finds the near-miss jobs

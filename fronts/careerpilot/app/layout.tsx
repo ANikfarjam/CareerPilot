@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CareerAI",
+  title: "CareerPilot",
   description: "AI-powered job search",
 };
 

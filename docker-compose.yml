@@ -1,17 +1,17 @@
-name: careerai
+name: careerpilot
 
 # Code-execution sandbox for the agents. Never started by `docker compose up`
 # (it's behind a profile); agents/sandbox/session.py starts one throwaway
 # container per search (shared by all portals) with
 # `docker compose run -d --rm sandbox`.
 x-sandbox: &sandbox
-  image: careerai-sandbox:latest
+  image: careerpilot-sandbox:latest
   build:
     context: agents/sandbox
   profiles: [sandbox]
   command: ["sleep", "infinity"] # commands are run with `docker exec`
   labels:
-    careerai.sandbox: "1"
+    careerpilot.sandbox: "1"
 
   # Hardening
   user: "1000:1000"
@@ -50,7 +50,7 @@ services:
   # Same sandbox without GPU or torch, for machines without the NVIDIA toolkit.
   sandbox-cpu:
     <<: *sandbox
-    image: careerai-sandbox:cpu
+    image: careerpilot-sandbox:cpu
     build:
       context: agents/sandbox
       args:

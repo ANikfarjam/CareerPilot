@@ -882,7 +882,9 @@ export type ResumeReport = {
 /**
  * RunLog
  *
- * One progress line of a graph node (AgentRun.logs), e.g. which portal is being searched.
+ * One line of a graph node's log (AgentRun.logs). detail False: a progress line, e.g. which
+ * portal is being searched; detail True: a live-activity line, one step of the agent's loop
+ * (waiting on the model, the command it runs, its exit code).
  */
 export type RunLog = {
     /**
@@ -897,6 +899,10 @@ export type RunLog = {
      * Message
      */
     message: string;
+    /**
+     * Detail
+     */
+    detail: boolean;
     /**
      * At
      */

@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CareerAI API",
+    "title": "CareerPilot API",
     "version": "0.1.0"
   },
   "paths": {
@@ -2690,6 +2690,11 @@
             "type": "string",
             "title": "Message"
           },
+          "detail": {
+            "type": "boolean",
+            "title": "Detail",
+            "default": false
+          },
           "at": {
             "type": "string",
             "format": "date-time",
@@ -2701,10 +2706,11 @@
           "stage",
           "level",
           "message",
+          "detail",
           "at"
         ],
         "title": "RunLog",
-        "description": "One progress line of a graph node (AgentRun.logs), e.g. which portal is being searched."
+        "description": "One line of a graph node's log (AgentRun.logs). detail False: a progress line, e.g. which\nportal is being searched; detail True: a live-activity line, one step of the agent's loop\n(waiting on the model, the command it runs, its exit code)."
       },
       "RunStatus": {
         "type": "string",

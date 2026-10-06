@@ -34,12 +34,12 @@ export function SiteNav() {
         <Link href="/docs/page" className="flex items-center gap-3">
           <Image
             src={logo}
-            alt="CareerAI"
+            alt="CareerPilot"
             priority
             className="size-10 rounded-xl object-cover ring-1 ring-white/10"
           />
           <span className="bg-linear-to-r from-brand-blue via-brand-teal to-brand-green bg-clip-text text-lg font-semibold tracking-tight text-transparent">
-            CareerAI
+            CareerPilot
           </span>
         </Link>
 

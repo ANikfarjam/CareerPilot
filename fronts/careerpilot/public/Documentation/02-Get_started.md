@@ -1,10 +1,10 @@
 # Get Started
 
-## Step 1: Teach CareerAI about you
+## Step 1: Teach CareerPilot about you
 
-The first thing CareerAI needs to do is learn about you. To match you with jobs, tailor your resume and tune your job search, its agents need your work history, education, projects and achievements.
+The first thing CareerPilot needs to do is learn about you. To match you with jobs, tailor your resume and tune your job search, its agents need your work history, education, projects and achievements.
 
-CareerAI keeps all of this in one file, your **knowledge base** (`Docs/user_docs/user_knowledge.md`). The CareerAI agent writes it from documents you give it, and the other agents read it:
+CareerPilot keeps all of this in one file, your **knowledge base** (`Docs/user_docs/user_knowledge.md`). The CareerPilot agent writes it from documents you give it, and the other agents read it:
 
 - **Qualification check** scores each job posting against it.
 - **Resume builder** writes tailored resumes from it.
@@ -34,7 +34,7 @@ Docs/user_docs/
 ├── education/
 │   └── transcript.pdf
 ├── projects/
-│   ├── careerai/
+│   ├── careerpilot/
 │   │   └── README.md
 │   └── trading-bot/
 │       └── report.pdf

@@ -1,10 +1,10 @@
 # Search for Jobs
 
-Once your knowledge base is ready (see Get Started), CareerAI can look for jobs for you. Click **Search** in the navigation bar to open the job search page. Each search runs three agents, one after another:
+Once your knowledge base is ready (see Get Started), CareerPilot can look for jobs for you. Click **Search** in the navigation bar to open the job search page. Each search runs three agents, one after another:
 
 1. **Search**: the Portal Search agent visits each company careers page you track and collects its open positions.
 2. **Qualify**: the Qualification Check agent reads each new posting, lists its technical requirements, compares them to your knowledge base and gives the job a match score from 0 to 10.
-3. **Ingest**: CareerAI saves the scored jobs to your job board, so you can track your applications.
+3. **Ingest**: CareerPilot saves the scored jobs to your job board, so you can track your applications.
 
 The page has three tabs: **Overview** sets what to search for, **Search** runs the search, and **Results** shows the jobs it saved.
 
@@ -37,7 +37,7 @@ You can't edit either list while a search is running. Wait until the search fini
 Open the **Search** tab.
 
 1. **Pick the portals.** Click **Portals** to see the list. All enabled portals are ticked by default. Untick the ones you want to skip for this run, or use **Select all** and **Clear**.
-2. **Add a position by hand (optional).** Maybe you found a job somewhere else, such as on LinkedIn or a referral. To have CareerAI score and save it, click **Add position** and fill in the form:
+2. **Add a position by hand (optional).** Maybe you found a job somewhere else, such as on LinkedIn or a referral. To have CareerPilot score and save it, click **Add position** and fill in the form:
 
    | Field | What to enter |
    | --- | --- |

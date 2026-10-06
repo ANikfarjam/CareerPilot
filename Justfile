@@ -6,7 +6,7 @@ export PATH := justfile_directory() + "/.myenv/bin:" + env_var("PATH")
 install_libraries:
     #!/usr/bin/env bash
     pip install -r requirements.txt
-    cd fronts/careerai && pnpm install
+    cd fronts/careerpilot && pnpm install
 
 # Installs Ollama into ./.ollama (no sudo needed); it serves the local LLM.
 install_ollama:
@@ -71,7 +71,7 @@ create_postgressDB:
     #!/usr/bin/env bash
     docker pull postgres:17
     echo "pulled postgres:17 docker image"
-    docker run --name careerAI_postgres \
+    docker run --name careerpilot_postgres \
         -e POSTGRES_PASSWORD=mysecretpassword \
         -p 5432:5432 \
         -d postgres:17
@@ -80,10 +80,10 @@ create_postgressDB:
 
 # Starts / stops the Postgres container created by create_postgressDB.
 start_db:
-    docker start careerAI_postgres
+    docker start careerpilot_postgres
 
 stop_db:
-    docker stop careerAI_postgres
+    docker stop careerpilot_postgres
 
 # Runs the FastAPI backend (agents) in the foreground so its logs show in the terminal.
 # Stop it with Ctrl+C, or `just stop_app` from another terminal.
@@ -108,16 +108,16 @@ stop_app:
 
 # Runs the Next.js frontend at http://localhost:3000.
 run_gui:
-    cd fronts/careerai && pnpm dev
+    cd fronts/careerpilot && pnpm dev
 
-# Writes the FastAPI OpenAPI spec to fronts/careerai/openapi.json without starting the server.
+# Writes the FastAPI OpenAPI spec to fronts/careerpilot/openapi.json without starting the server.
 # create_engine doesn't connect on import, so a placeholder DATABASE_URL is enough.
 openapi:
-    DATABASE_URL="${DATABASE_URL:-sqlite://}" python -c "import json; from apis.main import app; print(json.dumps(app.openapi(), indent=2))" > fronts/careerai/openapi.json
+    DATABASE_URL="${DATABASE_URL:-sqlite://}" python -c "import json; from apis.main import app; print(json.dumps(app.openapi(), indent=2))" > fronts/careerpilot/openapi.json
 
-# Regenerates the typed frontend client (fronts/careerai/lib/client) from the backend schemas.
+# Regenerates the typed frontend client (fronts/careerpilot/lib/client) from the backend schemas.
 gen-api: openapi
-    cd fronts/careerai && pnpm gen:api
+    cd fronts/careerpilot && pnpm gen:api
 
 # Moves job descriptions out of the database into Docs/job_descriptions/*.md (safe to re-run).
 migrate:

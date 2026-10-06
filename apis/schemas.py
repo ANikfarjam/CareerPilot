@@ -11,7 +11,7 @@ from db.models import Action, JobBoard, JobType
 class Schema(BaseModel):
     """Base of every API schema. A field with a default is still always in a response, so
     the OpenAPI spec marks it required there; the generated frontend types
-    (fronts/careerai/lib/client) then match what the API sends. Request bodies are unaffected."""
+    (fronts/careerpilot/lib/client) then match what the API sends. Request bodies are unaffected."""
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
 
@@ -50,10 +50,13 @@ RunStage = Literal["portal_search", "qualification_check", "db_ingestion"]
 
 
 class RunLog(Schema):
-    """One progress line of a graph node (AgentRun.logs), e.g. which portal is being searched."""
+    """One line of a graph node's log (AgentRun.logs). detail False: a progress line, e.g. which
+    portal is being searched; detail True: a live-activity line, one step of the agent's loop
+    (waiting on the model, the command it runs, its exit code)."""
     stage: RunStage
     level: Literal["info", "success", "error"]
     message: str
+    detail: bool = False
     at: datetime
 
 
@@ -79,7 +82,7 @@ class AgentRun(Schema):
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     stage: Optional[RunStage] = None  # graph node currently running (the last one once finished)
-    logs: list[RunLog] = []  # progress of each node, oldest first (the last MAX_RUN_LOGS)
+    logs: list[RunLog] = []  # oldest first: every progress line, the last MAX_ACTIVITY_LOGS detail lines
     summary: Optional[AgentRunSummary] = None
     error: Optional[str] = None
 

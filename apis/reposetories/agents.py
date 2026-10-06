@@ -35,7 +35,7 @@ ANALYTICS_RUNS: dict[uuid.UUID, AnalyticsRun] = {}
 KNOWLEDGE_RUNS: dict[uuid.UUID, KnowledgeRun] = {}
 # One run at a time: every run shares the local LLM and a sandbox container.
 RUN_LOCK = threading.Lock()
-MAX_RUN_LOGS = 500  # AgentRun.logs keeps the newest lines so polling stays small
+MAX_ACTIVITY_LOGS = 300  # AgentRun.logs keeps every progress line but only the newest detail lines
 
 
 @functools.lru_cache(maxsize=2)
@@ -56,7 +56,8 @@ def _now() -> datetime.datetime:
 
 def _run_graph(run_id: uuid.UUID, portals: list[dict], manual_positions: list[dict]) -> None:
     """Background task: portal_search -> qualification_check -> db_ingestion, then records the outcome.
-    The nodes' progress lines (agents/utils/progress.py) are collected into run.logs as they stream."""
+    The nodes' progress and live-activity lines (agents/utils/progress.py) are collected into
+    run.logs as they stream and echoed to the API's log."""
     run = RUNS[run_id]
     try:
         run.status, run.started_at = RunStatus.running, _now()
@@ -68,7 +69,13 @@ def _run_graph(run_id: uuid.UUID, portals: list[dict], manual_positions: list[di
                 state = chunk
             else:
                 run.stage = chunk["stage"]
-                run.logs = (run.logs + [RunLog(**chunk, at=_now())])[-MAX_RUN_LOGS:]
+                line = RunLog(**chunk, at=_now())
+                logger.info("[%s] %s", line.stage, line.message)
+                logs = run.logs + [line]
+                if line.detail and sum(l.detail for l in logs) > MAX_ACTIVITY_LOGS:
+                    oldest = next(i for i, l in enumerate(logs) if l.detail)
+                    logs = logs[:oldest] + logs[oldest + 1:]
+                run.logs = logs
         scored = state.get("scored_positions")  # None when no positions were found
         run.summary = AgentRunSummary(
             positions=len(state.get("positions", [])),

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Check, Database, Gauge, Globe, LoaderCircle, X, type LucideIcon } from "lucide-react"
 
 import type { AgentRun, RunLog } from "@/lib/api"
@@ -45,11 +45,19 @@ function stageErrors(run: AgentRun | null): number[] {
   return [s.portal_errors.length, s.qualification_errors.length, s.ingestion_errors.length]
 }
 
-// Search tab's run view: the three stages as connected icons, then each stage's live log.
+// Search tab's run view: the three stages as connected icons, then the run's progress lines
+// (which portal, results) beside the agent's live activity (each model step and command).
 export function Pipeline({ run }: { run: AgentRun | null }) {
   const states = stageStates(run)
   const counts = stageCounts(run)
   const errors = stageErrors(run)
+  const errorCount = errors.reduce((a, b) => a + b, 0)
+  const logs = run?.logs ?? []
+  const progress = logs.filter((l) => !l.detail)
+  const activity = logs.filter((l) => l.detail)
+  const current = currentPortal(progress)
+  const running = run?.status === "running"
+  const last = logs.at(-1)
 
   return (
     <div className="space-y-6">
@@ -78,16 +86,20 @@ export function Pipeline({ run }: { run: AgentRun | null }) {
         ))}
       </ol>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {STAGES.map((stage, i) => (
-          <StageLog
-            key={stage.id}
-            label={stage.label}
-            state={states[i]}
-            errors={errors[i]}
-            logs={run?.logs.filter((l) => l.stage === stage.id) ?? []}
-          />
-        ))}
+      <div className="grid gap-4 md:grid-cols-2">
+        <LogPanel
+          title="Progress"
+          aside={errorCount > 0 && <span className="text-destructive">{errorCount} error{errorCount === 1 ? "" : "s"}</span>}
+          logs={progress}
+          empty={run?.status === "running" ? "Starting…" : "No activity yet."}
+          tag={(log) => STAGES.find((s) => s.id === log.stage)?.label}
+        />
+        <LogPanel
+          title={current ? `Live activity · ${current}` : "Live activity"}
+          aside={running && last && <WaitingFor since={last.at} />}
+          logs={activity}
+          empty={running ? "Waiting for the first agent step…" : "No activity yet."}
+        />
       </div>
     </div>
   )
@@ -144,7 +156,44 @@ function StageIcon({ icon: Icon, state }: { icon: LucideIcon; state: StageState 
   )
 }
 
-function StageLog({ label, state, errors, logs }: { label: string; state: StageState; errors: number; logs: RunLog[] }) {
+// "Cerebras Systems (12/134)" from the newest "Searching …" progress line, while that portal is still running.
+function currentPortal(progress: RunLog[]) {
+  const last = progress.findLast((l) => l.stage === "portal_search")
+  return last?.message.match(/^Searching (.+)$/)?.[1] ?? null
+}
+
+// Time since the newest log line, ticking every second, so a long model call reads as alive.
+function WaitingFor({ since }: { since: string }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const s = Math.max(0, Math.floor((now - new Date(since).getTime()) / 1000))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const text = h ? `${h}h ${m}m` : m ? `${m}m ${s % 60}s` : `${s}s`
+  return (
+    <span className="flex items-center gap-1 tabular-nums" title="Time since the last update">
+      <LoaderCircle className="size-3 animate-spin" />
+      {text}
+    </span>
+  )
+}
+
+function LogPanel({
+  title,
+  aside,
+  logs,
+  empty,
+  tag,
+}: {
+  title: string
+  aside?: ReactNode
+  logs: RunLog[]
+  empty: string
+  tag?: (log: RunLog) => string | undefined
+}) {
   const box = useRef<HTMLDivElement>(null)
 
   // Follow the newest line (scrolls the log box only, not the page).
@@ -153,27 +202,27 @@ function StageLog({ label, state, errors, logs }: { label: string; state: StageS
   }, [logs.length])
 
   return (
-    <section className="flex flex-col overflow-hidden rounded-xl border bg-card">
-      <header className="flex items-center justify-between border-b px-4 py-2.5">
-        <h3 className="text-sm font-medium">{label} log</h3>
-        <span className="flex items-center gap-2 text-xs text-muted-foreground">
-          {errors > 0 && <span className="text-destructive">{errors} error{errors === 1 ? "" : "s"}</span>}
+    <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card">
+      <header className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
+        <h3 className="min-w-0 truncate text-sm font-medium">{title}</h3>
+        <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+          {aside}
           <span className="tabular-nums">{logs.length}</span>
         </span>
       </header>
-      <div ref={box} className="h-72 overflow-y-auto px-4 py-3 font-mono text-xs leading-relaxed">
+      <div ref={box} className="h-80 overflow-y-auto px-4 py-3 font-mono text-xs leading-relaxed">
         {logs.length === 0 ? (
-          <p className="text-muted-foreground">
-            {state === "skipped" ? "Skipped: nothing to process." : state === "running" ? "Starting…" : "No activity yet."}
-          </p>
+          <p className="text-muted-foreground">{empty}</p>
         ) : (
           <ul className="space-y-1">
             {logs.map((log, i) => (
               <li key={i} className="flex gap-2">
                 <span className="shrink-0 text-muted-foreground/70 tabular-nums">{formatTime(log.at)}</span>
+                {tag && <span className="w-12 shrink-0 text-muted-foreground/70">{tag(log)}</span>}
                 <span
                   className={cn(
                     "min-w-0 break-words",
+                    log.message.includes(" · $ ") && "text-muted-foreground",
                     log.level === "success" && "text-brand-green",
                     log.level === "error" && "text-destructive",
                   )}

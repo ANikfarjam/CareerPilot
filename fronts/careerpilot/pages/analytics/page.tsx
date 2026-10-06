@@ -38,6 +38,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -58,9 +59,11 @@ import {
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-const RUN_ID_KEY = "careerai.analyticsRunId"
+const RUN_ID_KEY = "careerpilot.analyticsRunId"
 const POLL_MS = 3000
 const NEAR_MISS = [5, 8] // compatibility band the agent calls near-miss (agents/analytics/agent.py)
+
+type Tab = "pipeline" | "fit" | "insights"
 
 // Categorical slots, fixed order, validated for CVD separation on the light and dark card
 // surfaces. The same entity keeps the same color on every chart.
@@ -115,6 +118,7 @@ const EFFORT_STYLE: Record<Effort, string> = {
 }
 
 export default function AnalyticsPage() {
+  const [tab, setTab] = useState<Tab>("pipeline")
   // Chart tables: always fresh from GET /agents/analytics.
   const [report, setReport] = useState<AnalyticsReport | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -189,6 +193,7 @@ export default function AnalyticsPage() {
       setRun(started)
       setRunId(started.id)
       setNow(Date.now())
+      setTab("insights") // watch the agent work where its results will land
     } catch (e) {
       setRunError(
         e instanceof ApiError && e.status === 409
@@ -255,13 +260,55 @@ export default function AnalyticsPage() {
         {loadError && <Banner>Could not load analytics: {loadError}</Banner>}
         {hasJobs === null ? (
           <LoadingCharts />
-        ) : !hasJobs || !report ? (
-          <NoJobsCards />
         ) : (
           <>
-            <KpiRow report={report} />
-            <ChartsGrid report={report} />
-            <InsightsSection insights={insights} running={isRunning} />
+            {hasJobs && report ? <KpiRow report={report} /> : <NoJobsKpis />}
+
+            <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="gap-6">
+              <TabsList variant="line" className="w-full justify-start border-b">
+                <TabsTrigger value="pipeline" className="flex-none px-3">
+                  Pipeline
+                </TabsTrigger>
+                <TabsTrigger value="fit" className="flex-none px-3">
+                  Fit &amp; companies
+                </TabsTrigger>
+                <TabsTrigger value="insights" className="flex-none px-3">
+                  <Sparkles className="text-brand-teal" />
+                  AI insights
+                  {isRunning ? (
+                    <LoaderCircle className="animate-spin text-brand-teal" />
+                  ) : (
+                    insights && (
+                      <span className="rounded-md bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground">
+                        {insights.near_miss_jobs.length} near-miss
+                      </span>
+                    )
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="pipeline">
+                {hasJobs && report ? (
+                  <PipelineCharts report={report} />
+                ) : (
+                  <NoJobsNote>Please run your first search for the analytics to work.</NoJobsNote>
+                )}
+              </TabsContent>
+              <TabsContent value="fit">
+                {hasJobs && report ? (
+                  <FitCharts report={report} />
+                ) : (
+                  <NoJobsNote>Please run your first search for the analytics to work.</NoJobsNote>
+                )}
+              </TabsContent>
+              <TabsContent value="insights" className="flex flex-col gap-6">
+                {hasJobs ? (
+                  <InsightsSection insights={insights} running={isRunning} />
+                ) : (
+                  <NoJobsNote>Please run your first search to generate insights.</NoJobsNote>
+                )}
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </main>
@@ -293,15 +340,15 @@ function KpiRow({ report }: { report: AnalyticsReport }) {
   )
 }
 
-function ChartsGrid({ report }: { report: AnalyticsReport }) {
-  const { funnel, weekly, compatibility, by_job_type, by_company } = report.tables
+// Where found jobs end up, and when.
+function PipelineCharts({ report }: { report: AnalyticsReport }) {
+  const { funnel, weekly } = report.tables
   const funnelData = funnel.map((r) => ({
     ...r,
     label: STAGE_LABELS[r.stage] ?? r.stage,
     display: `${r.count} · ${formatPct(r.rate)}`,
   }))
   const weeklyData = useMemo(() => weekly.map(bucketWeek), [weekly])
-  const jobTypeData = by_job_type.map((r) => ({ ...r, label: titleCase(r.job_type) }))
 
   return (
     <section className="grid gap-6 lg:grid-cols-2">
@@ -333,7 +380,17 @@ function ChartsGrid({ report }: { report: AnalyticsReport }) {
           </BarChart>
         </ChartContainer>
       </ChartCard>
+    </section>
+  )
+}
 
+// How well the found jobs match, by work arrangement and company.
+function FitCharts({ report }: { report: AnalyticsReport }) {
+  const { compatibility, by_job_type, by_company } = report.tables
+  const jobTypeData = by_job_type.map((r) => ({ ...r, label: titleCase(r.job_type) }))
+
+  return (
+    <section className="grid gap-6 lg:grid-cols-2">
       <ChartCard
         title="Compatibility"
         description={`Fit score of every job (0-10). The shaded ${NEAR_MISS[0]}-${NEAR_MISS[1]} band is where near-miss jobs live.`}
@@ -448,15 +505,15 @@ function InsightsSection({ insights, running }: { insights: AnalyticsReport | nu
       <section className="rounded-2xl border bg-card p-6">
         <SectionTitle icon={Sparkles}>AI insights</SectionTitle>
         <div className="mt-4 space-y-4 text-sm leading-relaxed">
-          <Markdown>
-            {insights.analysis}
-          </Markdown>
           <div className="rounded-xl border border-brand-teal/30 bg-brand-teal/5 p-4">
             <p className="mb-1 text-xs font-medium uppercase tracking-wider text-brand-teal">Conclusion</p>
             <Markdown>
               {insights.conclusion}
             </Markdown>
           </div>
+          <Markdown>
+            {insights.analysis}
+          </Markdown>
         </div>
       </section>
 
@@ -660,8 +717,9 @@ function LoadingCharts() {
           <Skeleton key={i} className="h-22 rounded-2xl" />
         ))}
       </div>
+      <Skeleton className="h-10 w-80 rounded-xl" />
       <div className="grid gap-6 lg:grid-cols-2">
-        {[0, 1, 2, 3].map((i) => (
+        {[0, 1].map((i) => (
           <Skeleton key={i} className="h-80 rounded-2xl" />
         ))}
       </div>
@@ -669,36 +727,15 @@ function LoadingCharts() {
   )
 }
 
-// Same cards as the loaded page, each asking for a first search instead of showing data.
-function NoJobsCards() {
-  const note = "Please run your first search for the analytics to work."
+// Same tiles as the loaded page, empty until the first search saves jobs.
+function NoJobsKpis() {
   return (
-    <>
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile icon={Briefcase} label="Jobs found" value="—" />
-        <StatTile icon={Send} label="Applied" value="—" />
-        <StatTile icon={CalendarCheck} label="Interviews" value="—" />
-        <StatTile icon={Gauge} label="Avg. compatibility" value="—" />
-      </section>
-      <section className="grid gap-6 lg:grid-cols-2">
-        {["Funnel", "Weekly activity", "Compatibility", "Work type"].map((title) => (
-          <ChartCard key={title} title={title}>
-            <NoJobsNote>{note}</NoJobsNote>
-          </ChartCard>
-        ))}
-        <div className="lg:col-span-2">
-          <ChartCard title="Top companies">
-            <NoJobsNote>{note}</NoJobsNote>
-          </ChartCard>
-        </div>
-      </section>
-      <section className="rounded-2xl border bg-card p-6">
-        <SectionTitle icon={Sparkles}>AI insights</SectionTitle>
-        <div className="mt-5">
-          <NoJobsNote>Please run your first search to generate insights.</NoJobsNote>
-        </div>
-      </section>
-    </>
+    <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <StatTile icon={Briefcase} label="Jobs found" value="—" />
+      <StatTile icon={Send} label="Applied" value="—" />
+      <StatTile icon={CalendarCheck} label="Interviews" value="—" />
+      <StatTile icon={Gauge} label="Avg. compatibility" value="—" />
+    </section>
   )
 }
 

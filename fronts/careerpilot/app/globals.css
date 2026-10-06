@@ -53,7 +53,7 @@
 }
 
 :root {
-  /* Brand — sampled from the CareerAI logo (blue → teal → green on navy) */
+  /* Brand — sampled from the CareerPilot logo (blue → teal → green on navy) */
   --brand-navy: oklch(0.24 0.035 260);
   --brand-blue: oklch(0.52 0.15 258);
   --brand-teal: oklch(0.68 0.12 200);

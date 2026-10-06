@@ -366,7 +366,7 @@ def make_analytics_node(
 # ─────────────────────────────────────────────────────────
 
 def _write(sbx: SandboxSession, path: str, content: str) -> None:
-    out = sbx.run(f"cat > {path} <<'CAREERAI_DATA_EOF'\n{content}\nCAREERAI_DATA_EOF")
+    out = sbx.run(f"cat > {path} <<'CAREERPILOT_DATA_EOF'\n{content}\nCAREERPILOT_DATA_EOF")
     if out["exit_code"] != 0:
         raise RuntimeError(f"could not write {path} to the sandbox: {out['stderr']}")
 

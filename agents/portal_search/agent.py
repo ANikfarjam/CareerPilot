@@ -34,6 +34,7 @@ Orchestration:
 import io
 import json
 import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal, TypedDict
@@ -146,6 +147,7 @@ class PortalSearchContext:
     # Lives in the run context, not the state, so the state stays serializable
     # for LangGraph checkpointers.
     sandbox: SandboxSession
+    log: Log = no_log  # live-activity lines (detail=True) of each step, see agents/utils/progress.py
 
 
 def build_portal_search_agent(model: BaseChatModel | None = None):
@@ -175,11 +177,32 @@ def build_portal_search_agent(model: BaseChatModel | None = None):
             "positions": [],
         }
 
-    def agent(state: PortalSearchState):
+    def agent(state: PortalSearchState, runtime: Runtime[PortalSearchContext]):
+        name, step = state["portal"].get("name"), state["steps"] + 1
+        log = runtime.context.log
+        log("info", f"{name} · step {step}/{MAX_STEPS}: waiting on model", detail=True)
         reply = model.invoke(state["messages"])
+        if thinking := reply.additional_kwargs.get("reasoning_content"):
+            log("info", f"{name} · thinking: {_excerpt(thinking, 200)}", detail=True)
+        text = _final_channel(reply.text)
+        if not _extract_code(text) and (script := _tool_call_script(reply)):
+            # gpt-oss was trained with a container.exec shell tool and often calls it instead of
+            # writing a code block; run its command as if it had been a ```bash block.
+            text = f"```bash\n{script}\n```"
+        if code := _extract_code(text):
+            lines = code[1].splitlines() or [""]
+            more = f" ({len(lines)} lines)" if len(lines) > 1 else ""
+            log("info", f"{name} · $ {_excerpt(lines[0], 160)}{more}", detail=True)
+        elif text.strip().upper().startswith("DONE"):
+            log("info", f"{name} · replied DONE", detail=True)
+        else:
+            tools = "; ".join(f"{c['name']}({_excerpt(json.dumps(c.get('args')), 120)})"
+                              for c in getattr(reply, "tool_calls", None) or [])
+            what = f"called unknown tool {tools}" if tools else f"no code block in reply: {_excerpt(text, 160) or '(empty)'}"
+            log("error", f"{name} · {what}", detail=True)
         return {
-            "messages": [AIMessage(_final_channel(reply.text))],
-            "steps": state["steps"] + 1,
+            "messages": [AIMessage(text)],
+            "steps": step,
         }
 
     def route(state: PortalSearchState) -> Literal["execute", "finalize"]:
@@ -191,6 +214,9 @@ def build_portal_search_agent(model: BaseChatModel | None = None):
         lang, code = _extract_code(state["messages"][-1].text)
         sbx = runtime.context.sandbox
         out = sbx.run_python(code) if lang in ("python", "py") else sbx.run(code)
+        first = next((l for l in (out["stdout"] + "\n" + out["stderr"]).splitlines() if l.strip()), "(no output)")
+        runtime.context.log("info" if out["exit_code"] == 0 else "error",
+                            f"{state['portal'].get('name')} · exit {out['exit_code']}: {_excerpt(first, 160)}", detail=True)
         return {"messages": [HumanMessage(_format_observation(out))]}
 
     def finalize(
@@ -213,11 +239,17 @@ def build_portal_search_agent(model: BaseChatModel | None = None):
                     problem = f"{int(bad.sum())} rows in {result_file} have an empty position or link."
                 positions = df[~bad].to_dict("records")
 
+        log, name = runtime.context.log, state["portal"].get("name")
         if problem and state["steps"] < MAX_STEPS:
+            log("error", f"{name} · CSV problem: {_excerpt(problem, 200)}; asking model to fix", detail=True)
             return Command(
                 update={"messages": [HumanMessage(f"{problem}\nFix the CSV, then reply DONE.")]},
                 goto="agent",
             )
+        if problem:
+            log("error", f"{name} · hit MAX_STEPS ({MAX_STEPS}): {_excerpt(problem, 200)}", detail=True)
+        else:
+            log("success", f"{name} · CSV ok: {len(positions)} rows", detail=True)
         return Command(update={"positions": positions}, goto=END)
 
     graph = StateGraph(PortalSearchState, context_schema=PortalSearchContext)
@@ -254,7 +286,7 @@ def search_portals(
                 try:
                     out = agent.invoke(
                         {"portal": portal},
-                        context=PortalSearchContext(sandbox=sbx),
+                        context=PortalSearchContext(sandbox=sbx, log=log),
                         config={"recursion_limit": 4 * MAX_STEPS + 10},
                     )
                     rows += out["positions"]
@@ -336,6 +368,28 @@ def _final_channel(text: str) -> str:
     # langchainConfig); this guards against a raw harmony "analysis...assistantfinal..."
     # reply so reasoning doesn't pile up in the history.
     return text.rsplit("assistantfinal", 1)[-1].strip()
+
+
+def _excerpt(text: str, n: int) -> str:
+    """text on one line, cut to n chars, for a log line."""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= n else flat[: n - 1] + "…"
+
+
+def _tool_call_script(reply: AIMessage) -> str | None:
+    """Shell script of the reply's first tool call that carries one, e.g. container.exec's
+    {"cmd": ["bash", "-lc", "<script>"]}; None if no call has a command."""
+    for call in getattr(reply, "tool_calls", None) or []:
+        args = call.get("args") or {}
+        cmd = next((args[k] for k in ("cmd", "command", "script", "code", "input") if args.get(k)), None)
+        if isinstance(cmd, list):
+            if len(cmd) >= 3 and cmd[0] in ("bash", "sh") and cmd[1] in ("-c", "-lc"):
+                cmd = cmd[2]
+            else:
+                cmd = shlex.join(str(c) for c in cmd)
+        if isinstance(cmd, str) and cmd.strip():
+            return cmd.strip()
+    return None
 
 
 def _extract_code(text: str) -> tuple[str, str] | None:

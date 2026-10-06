@@ -1,10 +1,10 @@
-# CareerAI
+# CareerPilot
 
 *By Ashkan Nikfarjam*
 
-CareerAI is an open-source, AI-powered job search engine. Its agents query job-board portal APIs to find roles tailored to your skills, then pull the key qualifications out of each job description and match them against your background, so you only spend time on jobs you're actually qualified for.
+CareerPilot is an open-source, AI-powered job search engine. Its agents query job-board portal APIs to find roles tailored to your skills, then pull the key qualifications out of each job description and match them against your background, so you only spend time on jobs you're actually qualified for.
 
-CareerAI also tracks your applications, so you always know which jobs you've already applied to.
+CareerPilot also tracks your applications, so you always know which jobs you've already applied to.
 
 ## Features
 
@@ -29,7 +29,7 @@ CareerAI also tracks your applications, so you always know which jobs you've alr
 
 ### 1. Clone the repository and install dependencies
 
-CareerAI is open source: clone the repository into your desired directory and install the Python and frontend dependencies:
+CareerPilot is open source: clone the repository into your desired directory and install the Python and frontend dependencies:
 
 ```bash
 git clone https://github.com/ANikfarjam/careerAI
@@ -42,7 +42,7 @@ just install_libraries
 
 ### 2. Download the model
 
-CareerAI runs OpenAI's [gpt-oss-20b](https://huggingface.co/openai/gpt-oss-20b) locally through [Ollama](https://ollama.com). Its MoE experts that don't fit in VRAM run on the CPU, so it works on an 8 GB GPU with 16 GB of RAM. Install Ollama into `./.ollama` and pull the model (~13 GB) into `./llmModel/`:
+CareerPilot runs OpenAI's [gpt-oss-20b](https://huggingface.co/openai/gpt-oss-20b) locally through [Ollama](https://ollama.com). Its MoE experts that don't fit in VRAM run on the CPU, so it works on an 8 GB GPU with 16 GB of RAM. Install Ollama into `./.ollama` and pull the model (~13 GB) into `./llmModel/`:
 
 ```bash
 just install_ollama

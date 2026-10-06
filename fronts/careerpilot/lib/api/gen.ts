@@ -1,4 +1,4 @@
-// One typed function per CareerAI API request. Each wraps the generated SDK
+// One typed function per CareerPilot API request. Each wraps the generated SDK
 // (lib/client/sdk.gen.ts), which sends it through the shared client in
 // lib/client/client.gen.ts; failed requests throw ApiError.
 import * as sdk from "@/lib/client"

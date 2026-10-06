@@ -17,9 +17,9 @@ class SandboxConfig(BaseModel):
     compose_file: Path = PROJECT_ROOT / "docker-compose.yml"
     # "sandbox" (CUDA) or "sandbox-cpu" (no NVIDIA toolkit needed).
     service: str = "sandbox"
-    name_prefix: str = "careerai-sbx"
+    name_prefix: str = "careerpilot-sbx"
     # Must match the label set on the service in docker-compose.yml.
-    label: str = "careerai.sandbox=1"
+    label: str = "careerpilot.sandbox=1"
 
     # Execution behaviour (per `docker exec` call)
     exec_timeout_s: int = 60
