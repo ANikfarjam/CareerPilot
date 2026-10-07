@@ -45,7 +45,6 @@ title_filter:
     - "agentic"
     - "ai agent"
     - "software engineer I"
-    - "software engineer"
     - "jr software engineer"
     - "software engineer full stack"
     # ML workflow / pipeline software engineering
@@ -95,6 +94,11 @@ title_filter:
     - "Cloud Engineer"
     - "DevOps Engineer"
     - "Data Engineering"
+    - "AI/LLM engineer"
+    - "LLM developer"
+    - "variant annotation engineer"
+    - "prefect engineer"
+    - "langchain engineer"
   negative:
     - "intern"
     - "director"
@@ -120,6 +124,11 @@ title_filter:
     - "lead"
     - "principal"
     - "consultant"
+    - "architect"
+    - "technical lead"
+    - "manager"
+    - "product manager"
+    - "sales engineer"
   seniority_boost:
     - "senior"
     - "staff"
@@ -752,61 +761,61 @@ tracked_companies:
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: replit
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Cursor
     careers_url: https://jobs.ashbyhq.com/cursor
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: cursor
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Warp
     careers_url: https://www.warp.dev/careers
     api: https://boards-api.greenhouse.io/v1/boards/warp/jobs
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Tabnine
     careers_url: https://www.tabnine.com/careers
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Vercel
     careers_url: https://vercel.com/careers
     api: https://boards-api.greenhouse.io/v1/boards/vercel/jobs
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Netlify
     careers_url: https://www.netlify.com/careers
     api: https://boards-api.greenhouse.io/v1/boards/netlify/jobs
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Render
     careers_url: https://jobs.ashbyhq.com/render
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: render
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Railway
     careers_url: https://jobs.ashbyhq.com/railway
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: railway
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Neon
     careers_url: https://jobs.ashbyhq.com/neon
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: neon
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Supabase
     careers_url: https://jobs.ashbyhq.com/supabase
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: supabase
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   # ════════════════════════════════════════════
   # AI APPLICATIONS & CONSUMER AI
@@ -817,38 +826,38 @@ tracked_companies:
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: perplexity
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Character AI
     careers_url: https://jobs.ashbyhq.com/character
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: character
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Runway ML
     careers_url: https://jobs.ashbyhq.com/runway
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: runway
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Stability AI
     careers_url: https://stability.ai/careers
     api: https://boards-api.greenhouse.io/v1/boards/stabilityai/jobs
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Harvey AI
     careers_url: https://jobs.ashbyhq.com/harvey
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: harvey
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Glean
     careers_url: https://job-boards.greenhouse.io/gleanwork
     api: https://boards-api.greenhouse.io/v1/boards/gleanwork/jobs
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
     # note: boards-api 404s directly as of 2026-07-01 scan, but the public job-boards.greenhouse.io/gleanwork page renders correctly via fetch; slug confirmed via WebFetch of the page
 
   - name: Writer
@@ -856,19 +865,19 @@ tracked_companies:
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: writer
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Typeface
     careers_url: https://job-boards.greenhouse.io/typeface
     api: https://boards-api.greenhouse.io/v1/boards/typeface/jobs
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Sierra AI
     careers_url: https://jobs.ashbyhq.com/Sierra
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: Sierra
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Jasper
     careers_url: https://jobs.ashbyhq.com/Jasper%20AI
@@ -879,29 +888,29 @@ tracked_companies:
 
   - name: Copy.ai
     careers_url: https://www.copy.ai/careers
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Notion AI
     careers_url: https://jobs.ashbyhq.com/notion
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: notion
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Dust
     careers_url: https://dust.tt/jobs
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Coframe
     careers_url: https://coframe.ai/careers
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: ElevenLabs
     careers_url: https://elevenlabs.io/careers
     api: https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobBoardWithTeams
     api_provider: ashby
     api_slug: elevenlabs
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   - name: Luma AI
     careers_url: https://lumalabs.ai/careers
@@ -913,7 +922,7 @@ tracked_companies:
 
   - name: Midjourney
     careers_url: https://www.midjourney.com/careers
-    enabled: true
+    enabled: false  # dropped by the knowledge_base agent 2026-10-06
 
   # ════════════════════════════════════════════
   # AGENTIC AI & AUTOMATION
@@ -1206,6 +1215,26 @@ tracked_companies:
   - name: "Oracle Cloud AI"
     careers_url: "https://www.oracle.com/corporate/careers/"
     enabled: true
+
+  - name: "Uber"
+    careers_url: "https://www.uber.com/en-US/careers/"
+    enabled: true
+
+  - name: "Lyft"
+    careers_url: "https://www.lyft.com/careers"
+    enabled: true
+
+  - name: "C3.ai"
+    careers_url: "https://www.c3.ai/careers"
+    enabled: true
+
+  - name: "IBM"
+    careers_url: "https://www.ibm.com/careers"
+    enabled: true
+    # note: added by the knowledge_base agent 2026-10-07; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-07; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-07; check the careers_url
+    # note: added by the knowledge_base agent 2026-10-07; check the careers_url
     # note: added by the knowledge_base agent 2026-10-05; check the careers_url
     # note: added by the knowledge_base agent 2026-10-05; check the careers_url
     # note: added by the knowledge_base agent 2026-10-05; check the careers_url

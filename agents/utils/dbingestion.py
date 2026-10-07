@@ -6,6 +6,7 @@ Writes the scored postings from qualification_check into job_board_table.
   them, and keeps their action (application status) as you set it.
   Postings without a score (no description, or scoring failed) are skipped:
   compatibility is required in the table.
+  Postings scoring below MIN_SCORE (4) are left out as not a match.
   Descriptions are written to Docs/job_descriptions/<id>.md (db/documents.py);
   the table only stores their description_path.
 
@@ -27,6 +28,8 @@ from agents.utils.progress import stage_logger
 from db.dbOps import upsert_jobs
 from db.documents import write_description
 
+MIN_SCORE = 4  # postings scoring below this aren't stored
+
 
 def job_id(link: str) -> uuid.UUID:
     return uuid.uuid5(uuid.NAMESPACE_URL, link)
@@ -41,6 +44,8 @@ def positions_to_jobs(scored: pd.DataFrame) -> tuple[list[dict], list[dict]]:
             skipped.append({"link": None, "error": "posting has no link"})
         elif pd.isna(row.get("score")):
             skipped.append({"link": link, "error": "posting has no compatibility score"})
+        elif row["score"] < MIN_SCORE:
+            continue  # not a match: left out on purpose, not an error
         else:
             job_type = _text(row.get("jobType")).lower()
             jobs[link] = {  # keyed by link: one statement can't upsert the same id twice
@@ -85,7 +90,7 @@ def make_db_ingestion_node():
             scored = pd.DataFrame(scored or [])
         log = stage_logger("db_ingestion")
         jobs, errors = positions_to_jobs(scored)
-        log("info", f"Saving {len(jobs)} scored positions")
+        log("info", f"Saving {len(jobs)} positions scoring {MIN_SCORE}+")
         errors += save_descriptions(jobs)
         try:
             ingested = upsert_jobs(jobs)
