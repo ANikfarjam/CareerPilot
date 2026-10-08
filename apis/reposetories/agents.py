@@ -11,13 +11,14 @@ from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
 from db import dbOps
 from apis.schemas import (AgentRun, AgentRunRequest, AgentRunSummary, AnalyticsReport, AnalyticsRun,
-                          AnalyticsRunRequest, KnowledgeRun, KnowledgeRunRequest, PortalChanges, PortalCreate,
+                          AnalyticsRunRequest, DriveExportRequest, DriveFile, KnowledgeRun, KnowledgeRunRequest, PortalChanges, PortalCreate,
                           ResumeDraftOut, ResumeDraftSummary, ResumeDraftUpdate, ResumeReport, RunLog, RunStatus,
                           TargetPositionCreate, UserDocs)
 from agents.analytics.agent import build_tables, load_jobs
 from agents.knowledge_base.agent import (KINDS, KNOWLEDGE_FILE, USER_DOCS_DIR, apply_portal_changes, create_folders,
                                         run_knowledge_base, scan_user_docs)
 from agents.resume_builder.agent import load_job, run_resume_builder
+from agents.resume_builder import drive
 from agents.resume_builder.chat import stream_chat
 from agents.graph.analytic_graph import build_analytic_graph
 from agents.graph.graph import build_graph
@@ -351,6 +352,41 @@ def revert_resume_draft(draft_id: uuid.UUID, version: int):
     return dbOps.revert_draft(draft_id, version)
 
 
+@AGENTS_ROUTER.delete("/resume/drafts/{draft_id}/messages", response_model=ResumeDraftOut)
+def clear_resume_chat(draft_id: uuid.UUID):
+    """Clears a draft's chat history so earlier messages stop steering the model's replies;
+    the resume, side projects and versions are kept. 409 while a chat reply is being written."""
+    _draft_or_404(draft_id)
+    if not RUN_LOCK.acquire(blocking=False):
+        raise fastapi.HTTPException(status_code=409, detail="an agent is using the model; try again when it finishes")
+    try:
+        return dbOps.clear_draft_messages(draft_id)
+    finally:
+        RUN_LOCK.release()
+
+
+def _export_draft(draft: dict, targets: list[str]) -> list[dict]:
+    """Saves a draft's docs to Google Drive; raises drive.DriveNotConnected until the user signs in.
+    Its "Draft N" counts the job's drafts by creation, oldest = 1, so the name never changes."""
+    created = sorted(dbOps.list_drafts(draft["job_id"]), key=lambda d: d["created_at"])
+    number = next(i for i, d in enumerate(created, 1) if d["id"] == draft["id"])
+    return drive.export_draft(draft, number, targets)
+
+
+@AGENTS_ROUTER.post("/resume/drafts/{draft_id}/drive", response_model=list[DriveFile])
+def export_resume_draft(draft_id: uuid.UUID, body: DriveExportRequest):
+    """Saves a draft's resume and/or side projects to the user's Google Drive as Google Docs, in
+    career_pilot_resume/<job title>/; exporting again updates the same docs. 401 until the user
+    connects Google Drive (GET /drive/login), 503 if CareerPilot has no Google OAuth client."""
+    draft = _draft_or_404(draft_id)
+    try:
+        return _export_draft(draft, body.targets)
+    except drive.DriveNotConnected as e:
+        raise fastapi.HTTPException(status_code=401, detail=str(e))
+    except drive.DriveUnavailable as e:
+        raise fastapi.HTTPException(status_code=503, detail=str(e))
+
+
 def _chat_model():
     from agents.utils.langchainConfig import chat_model  # loads the local LLM on first use
     return chat_model
@@ -358,6 +394,7 @@ def _chat_model():
 
 async def _chat_turn(ws: fastapi.WebSocket, draft: dict, job: dict, content: str) -> dict:
     """Streams one reply's events to the socket, then saves the messages and doc edits.
+    If the reply asked for a Google Drive export, the docs are exported and the links added to it.
     Returns the updated draft dict. The caller holds RUN_LOCK."""
     model = await run_in_threadpool(_chat_model)
     result = None
@@ -366,11 +403,33 @@ async def _chat_turn(ws: fastapi.WebSocket, draft: dict, job: dict, content: str
             result = event
         else:
             await ws.send_json(event)
+    reply = result["reply"]
+    if result.get("drive"):
+        # Export what the draft will hold after this turn's edits.
+        edited = {**draft, **{t: result[t] for t in ("resume", "side_projects") if result.get(t)}}
+        login_url = str(ws.url_for("drive_login")).replace("ws", "http", 1)  # ws(s):// -> http(s)://
+        reply += "\n\n" + await run_in_threadpool(_drive_note, edited, result["drive"], login_url)
     note = f"chat: {content[:200]}"
     return await run_in_threadpool(
         dbOps.update_draft, draft["id"], resume=result.get("resume"), side_projects=result.get("side_projects"),
         note=note, messages=[{"role": "user", "content": content},
-                             {"role": "assistant", "content": result["reply"]}])
+                             {"role": "assistant", "content": reply}])
+
+
+def _drive_note(draft: dict, targets: list[str], login_url: str) -> str:
+    """The chat reply's line about a ```drive export: the doc links, or why it failed
+    (with a sign-in link when Drive isn't connected)."""
+    try:
+        files = _export_draft(draft, targets)
+    except drive.DriveNotConnected as e:
+        return f"{e} [Connect Google Drive]({login_url}), then ask me again."
+    except Exception as e:  # DriveUnavailable's message says what's missing
+        if not isinstance(e, drive.DriveUnavailable):
+            logger.exception("Drive export of draft %s failed", draft["id"])
+        return f"Couldn't save to Google Drive: {e}"
+    if not files:
+        return "Nothing to save to Google Drive: those docs are empty."
+    return "Saved to Google Drive: " + ", ".join(f"[{f['name']}]({f['url']})" for f in files)
 
 
 @AGENTS_ROUTER.websocket("/resume/drafts/{draft_id}/chat")
@@ -401,6 +460,8 @@ async def resume_chat(ws: fastapi.WebSocket, draft_id: uuid.UUID):
                 await ws.send_json({"type": "error", "detail": "model busy: an agent run is using it; try again later"})
                 continue
             try:
+                # Re-read: a manual edit, revert or Clear chat may have changed it since the last turn.
+                draft = await run_in_threadpool(dbOps.get_draft, draft_id) or draft
                 draft = await _chat_turn(ws, draft, job, content)
             except fastapi.WebSocketDisconnect:
                 raise

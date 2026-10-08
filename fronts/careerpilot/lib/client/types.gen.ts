@@ -416,6 +416,64 @@ export type DraftVersion = {
 };
 
 /**
+ * DriveExportRequest
+ *
+ * Body of POST /agents/resume/drafts/{draft_id}/drive: which of the draft's docs to save
+ * to Google Drive (under career_pilot_resume/<job title>/).
+ */
+export type DriveExportRequest = {
+    /**
+     * Targets
+     */
+    targets?: Array<'resume' | 'side_projects'>;
+};
+
+/**
+ * DriveFile
+ *
+ * One Google Doc a draft was exported to; re-exporting the draft updates this same doc.
+ */
+export type DriveFile = {
+    /**
+     * Target
+     */
+    target: 'resume' | 'side_projects';
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Url
+     */
+    url: string;
+};
+
+/**
+ * DriveStatus
+ *
+ * GET /drive/status: whether resumes can be exported to Google Drive. available is false when
+ * CareerPilot has no OAuth client; connected once the user signed in from the UI.
+ */
+export type DriveStatus = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Connected
+     */
+    connected: boolean;
+    /**
+     * Email
+     */
+    email: string | null;
+};
+
+/**
  * FunnelRow
  *
  * Row of AnalyticsTables.funnel: found -> applied -> interview -> interview_done.
@@ -1487,6 +1545,68 @@ export type RevertResumeDraftResponses = {
 
 export type RevertResumeDraftResponse = RevertResumeDraftResponses[keyof RevertResumeDraftResponses];
 
+export type ClearResumeChatData = {
+    body?: never;
+    path: {
+        /**
+         * Draft Id
+         */
+        draft_id: string;
+    };
+    query?: never;
+    url: '/agents/resume/drafts/{draft_id}/messages';
+};
+
+export type ClearResumeChatErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearResumeChatError = ClearResumeChatErrors[keyof ClearResumeChatErrors];
+
+export type ClearResumeChatResponses = {
+    /**
+     * Successful Response
+     */
+    200: ResumeDraftOut;
+};
+
+export type ClearResumeChatResponse = ClearResumeChatResponses[keyof ClearResumeChatResponses];
+
+export type ExportResumeDraftData = {
+    body: DriveExportRequest;
+    path: {
+        /**
+         * Draft Id
+         */
+        draft_id: string;
+    };
+    query?: never;
+    url: '/agents/resume/drafts/{draft_id}/drive';
+};
+
+export type ExportResumeDraftErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportResumeDraftError = ExportResumeDraftErrors[keyof ExportResumeDraftErrors];
+
+export type ExportResumeDraftResponses = {
+    /**
+     * Response Export Resume Draft
+     *
+     * Successful Response
+     */
+    200: Array<DriveFile>;
+};
+
+export type ExportResumeDraftResponse = ExportResumeDraftResponses[keyof ExportResumeDraftResponses];
+
 export type ListPortalsData = {
     body?: never;
     path?: never;
@@ -1764,6 +1884,38 @@ export type UpdateJobActionResponses = {
 };
 
 export type UpdateJobActionResponse = UpdateJobActionResponses[keyof UpdateJobActionResponses];
+
+export type GetDriveStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/drive/status';
+};
+
+export type GetDriveStatusResponses = {
+    /**
+     * Successful Response
+     */
+    200: DriveStatus;
+};
+
+export type GetDriveStatusResponse = GetDriveStatusResponses[keyof GetDriveStatusResponses];
+
+export type DisconnectDriveData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/drive';
+};
+
+export type DisconnectDriveResponses = {
+    /**
+     * Successful Response
+     */
+    200: DriveStatus;
+};
+
+export type DisconnectDriveResponse = DisconnectDriveResponses[keyof DisconnectDriveResponses];
 
 export type HealthData = {
     body?: never;

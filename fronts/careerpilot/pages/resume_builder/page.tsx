@@ -1,11 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import {
-  Building2,
+  ArrowLeft,
   Check,
+  CloudUpload,
   Copy,
   Download,
   ExternalLink,
@@ -16,28 +16,36 @@ import {
   Pencil,
   RotateCcw,
   Save,
-  Search,
   Sparkles,
+  Table2,
   TriangleAlert,
   X,
 } from "lucide-react"
 
 import { ChatPanel } from "@/components/chat-panel"
 import { Markdown } from "@/components/markdown"
+import { JobsTable } from "@/components/resume/jobs-table"
 import { StatusPill } from "@/components/status-pill"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useGoogleDrive, type GoogleDrive } from "@/hooks/use-google-drive"
 import { useResumeChat, type PendingReply } from "@/hooks/use-resume-chat"
 import {
   ApiError,
   buildResume,
+  clearDraftChat,
+  exportDraftToDrive,
   getDraft,
   listDrafts,
   listJobs,
   revertDraft,
   updateDraft,
+  updateJobAction,
+  type Action,
   type DocTarget,
+  type DriveFile,
   type Job,
   type ResumeDraft,
   type ResumeDraftSummary,
@@ -49,8 +57,11 @@ const TABS: { id: DocTarget; label: string; icon: typeof FileText }[] = [
   { id: "side_projects", label: "Side projects", icon: Lightbulb },
 ]
 
+type View = "jobs" | "editor"
+
 export default function ResumeBuilderPage() {
   const searchParams = useSearchParams()
+  const [view, setView] = useState<View>(searchParams?.get("job") ? "editor" : "jobs")
 
   // Jobs to tailor a resume to, best match first.
   const [jobs, setJobs] = useState<Job[] | null>(null)
@@ -59,6 +70,9 @@ export default function ResumeBuilderPage() {
   const [pickedJobId, setPickedJobId] = useState<string | null>(null)
   const jobId = pickedJobId ?? searchParams?.get("job") ?? jobs?.[0]?.id ?? null
   const job = jobs?.find((j) => j.id === jobId) ?? null
+
+  // Every job's draft count, for the Jobs table.
+  const [allDrafts, setAllDrafts] = useState<ResumeDraftSummary[] | null>(null)
 
   // Drafts of the selected job; the newest opens unless another is picked.
   const [drafts, setDrafts] = useState<{ jobId: string; items: ResumeDraftSummary[] } | null>(null)
@@ -81,6 +95,9 @@ export default function ResumeBuilderPage() {
         setJobs([])
         setJobsError(errorMessage(e))
       })
+    listDrafts()
+      .then(setAllDrafts)
+      .catch(() => setAllDrafts([]))
   }, [])
 
   useEffect(() => {
@@ -119,18 +136,38 @@ export default function ResumeBuilderPage() {
         ? { ...prev, items: [updated, ...prev.items.filter((d) => d.id !== updated.id)] }
         : prev,
     )
+    setAllDrafts((prev) => prev && [updated, ...prev.filter((d) => d.id !== updated.id)])
   }, [])
 
   const chat = useResumeChat(openDraft?.id ?? null, applyDraft)
 
-  const handleBuild = async () => {
-    if (!jobId) return
-    setBuilding({ jobId, startedAt: Date.now() })
+  const clearChat = async () => {
+    if (!openDraft || !window.confirm("Clear this draft's chat? Your resume and side projects are kept.")) return
+    try {
+      applyDraft(await clearDraftChat(openDraft.id))
+    } catch (e) {
+      setBuildError(errorMessage(e))
+    }
+  }
+  const drive = useGoogleDrive()
+
+  const openJob = (id: string) => {
+    setPickedJobId(id)
+    setPickedDraftId(null)
+    setView("editor")
+  }
+
+  const handleBuild = async (buildJobId: string | null = jobId) => {
+    if (!buildJobId) return
+    openJob(buildJobId)
+    setBuilding({ jobId: buildJobId, startedAt: Date.now() })
     setNow(Date.now())
     setBuildError(null)
     try {
-      const report = await buildResume(jobId)
+      const report = await buildResume(buildJobId)
       const created = await getDraft(report.draft_id)
+      // The job's draft list may not have loaded yet if the build started from the Jobs table.
+      setDrafts((prev) => (prev?.jobId === buildJobId ? prev : { jobId: buildJobId, items: [] }))
       setPickedDraftId(created.id)
       applyDraft(created)
       setTab("resume")
@@ -145,11 +182,42 @@ export default function ResumeBuilderPage() {
     }
   }
 
+  // Optimistic: show the new status right away, put the old one back if the API refuses.
+  const changeAction = async (target: Job, next: Action) => {
+    const setJobAction = (value: Action) =>
+      setJobs((list) => list && list.map((j) => (j.id === target.id ? { ...j, action: value } : j)))
+    setJobAction(next)
+    try {
+      await updateJobAction(target.id, next)
+    } catch (e) {
+      setJobAction(target.action)
+      setJobsError(errorMessage(e))
+    }
+  }
+
   const filteredJobs = useMemo(() => {
     const q = jobFilter.trim().toLowerCase()
     if (!jobs || !q) return jobs
     return jobs.filter((j) => `${j.company_name} ${j.position}`.toLowerCase().includes(q))
   }, [jobs, jobFilter])
+
+  const draftCounts = useMemo(() => {
+    if (!allDrafts) return null
+    const counts: Record<string, number> = {}
+    for (const d of allDrafts) counts[d.job_id] = (counts[d.job_id] ?? 0) + 1
+    return counts
+  }, [allDrafts])
+
+  // "Draft N" counts a job's drafts by creation (oldest = 1), so a label never shifts after an
+  // edit; the Drive export names its docs the same way.
+  const draftNumbers = useMemo(() => {
+    const byCreation = [...(jobDrafts ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at))
+    return Object.fromEntries(byCreation.map((d, i) => [d.id, i + 1]))
+  }, [jobDrafts])
+  const draftItems = useMemo(
+    () => Object.fromEntries((jobDrafts ?? []).map((d) => [d.id, `Draft ${draftNumbers[d.id]} · Edited ${formatDateTime(d.update_at)}`])),
+    [jobDrafts, draftNumbers],
+  )
 
   const isBuilding = building !== null
   const statusLabel = isBuilding
@@ -192,7 +260,7 @@ export default function ResumeBuilderPage() {
               <StatusPill running={isBuilding || chat.pending !== null} label={statusLabel} />
               <Button
                 size="lg"
-                onClick={handleBuild}
+                onClick={() => handleBuild()}
                 disabled={!jobId || isBuilding}
                 className="h-12 rounded-xl bg-linear-to-r from-brand-blue via-brand-teal to-brand-green px-6 text-base font-semibold text-brand-navy shadow-lg shadow-brand-teal/25 transition hover:shadow-brand-teal/40 hover:brightness-110"
               >
@@ -204,129 +272,109 @@ export default function ResumeBuilderPage() {
           {buildError && <Banner className="mt-6">{buildError}</Banner>}
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_360px]">
-          {/* Jobs + drafts */}
-          <aside className="flex flex-col gap-4">
-            <section className="rounded-2xl border bg-card p-4">
-              <h2 className="mb-3 text-sm font-semibold">Saved jobs</h2>
-              <div className="relative mb-3">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={jobFilter}
-                  onChange={(e) => setJobFilter(e.target.value)}
-                  placeholder="Filter jobs"
-                  aria-label="Filter jobs"
-                  className="pl-8"
-                />
-              </div>
-              {jobsError && <Banner>Could not load jobs: {jobsError}</Banner>}
-              {filteredJobs === null ? (
-                <div className="space-y-2">
-                  {[0, 1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-12 w-full rounded-lg" />
-                  ))}
-                </div>
-              ) : filteredJobs.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 py-6 text-center">
-                  <p className="text-sm text-muted-foreground">{jobFilter ? "No job matches." : "No saved jobs yet."}</p>
-                  {!jobFilter && (
-                    <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/search/page" />}>
-                      Go to search
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <ul className="-mx-1 max-h-80 space-y-1 overflow-y-auto px-1 lg:max-h-[420px]">
-                  {filteredJobs.map((j) => (
-                    <li key={j.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPickedJobId(j.id)
-                          setPickedDraftId(null)
-                        }}
-                        className={cn(
-                          "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition",
-                          j.id === jobId ? "bg-brand-teal/10 ring-1 ring-brand-teal/30" : "hover:bg-muted",
-                        )}
-                      >
-                        <Building2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium">{j.position}</span>
-                          <span className="block truncate text-xs text-muted-foreground">{j.company_name}</span>
-                        </span>
-                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
-                          {j.compatibility}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+        <Tabs value={view} onValueChange={(v) => setView(v as View)} className="gap-6">
+          <TabsList variant="line" className="w-full justify-start border-b">
+            <TabsTrigger value="jobs" className="flex-none px-3">
+              <Table2 />
+              Jobs
+            </TabsTrigger>
+            <TabsTrigger value="editor" className="flex-none px-3" disabled={!job}>
+              <Pencil />
+              Editor
+              {job && <span className="max-w-48 truncate text-muted-foreground">· {job.company_name}</span>}
+            </TabsTrigger>
+          </TabsList>
 
-            {jobId && (
-              <section className="rounded-2xl border bg-card p-4">
-                <h2 className="mb-3 text-sm font-semibold">Drafts for this job</h2>
-                {jobDrafts === null ? (
-                  <Skeleton className="h-10 w-full rounded-lg" />
-                ) : jobDrafts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">None yet. Build one above.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {jobDrafts.map((d, i) => (
-                      <li key={d.id}>
-                        <button
-                          type="button"
-                          onClick={() => setPickedDraftId(d.id)}
-                          className={cn(
-                            "w-full rounded-lg px-2.5 py-2 text-left text-sm transition",
-                            d.id === draftId ? "bg-brand-teal/10 ring-1 ring-brand-teal/30" : "hover:bg-muted",
-                          )}
-                        >
-                          <span className="block font-medium">Draft {jobDrafts.length - i}</span>
-                          <span className="block text-xs text-muted-foreground">
-                            Edited {formatDateTime(d.update_at)}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
-          </aside>
-
-          {/* Documents */}
-          <DocumentPane
-            draft={openDraft}
-            loading={draftId !== null && openDraft === null}
-            pending={chat.pending}
-            tab={tab}
-            onTab={setTab}
-            onDraft={applyDraft}
-            job={job}
-          />
-
-          {/* Chat */}
-          {openDraft ? (
-            <ChatPanel
-              messages={openDraft.messages}
-              pending={chat.pending}
-              socketState={chat.socketState}
-              error={chat.error}
-              onSend={chat.send}
-              className="h-[560px] lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]"
+          {/* Jobs */}
+          <TabsContent value="jobs" className="space-y-4">
+            {jobsError && <Banner>{jobsError}</Banner>}
+            <JobsTable
+              jobs={filteredJobs}
+              filter={jobFilter}
+              onFilter={setJobFilter}
+              selectedId={jobId}
+              draftCounts={draftCounts}
+              onOpen={(j) => openJob(j.id)}
+              onBuild={(j) => handleBuild(j.id)}
+              building={isBuilding}
+              onAction={changeAction}
             />
-          ) : (
-            <section className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center">
-              <Sparkles className="size-6 text-muted-foreground" />
-              <p className="max-w-xs text-sm text-muted-foreground">
-                Build a resume first, then chat here to adjust it.
-              </p>
-            </section>
-          )}
-        </div>
+          </TabsContent>
+
+          {/* Resume + chat */}
+          <TabsContent value="editor" className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={() => setView("jobs")}>
+                <ArrowLeft />
+                Jobs
+              </Button>
+              {job && (
+                <p className="min-w-0 flex-1 truncate text-sm">
+                  <span className="font-medium">{job.position}</span>
+                  <span className="text-muted-foreground"> · {job.company_name}</span>
+                </p>
+              )}
+              {jobDrafts === null ? (
+                <Skeleton className="h-8 w-64 rounded-md" />
+              ) : jobDrafts.length > 0 && draftId ? (
+                <Select items={draftItems} value={draftId} onValueChange={(v) => v && setPickedDraftId(v as string)}>
+                  <SelectTrigger size="sm" className="w-64" aria-label="Draft">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobDrafts.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {draftItems[d.id]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+              {drive.status?.connected && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <CloudUpload className="size-3.5" />
+                  Drive: {drive.status.email ?? "connected"}
+                  <Button variant="link" size="xs" className="h-auto px-1 text-xs" onClick={() => drive.disconnect()}>
+                    Disconnect
+                  </Button>
+                </span>
+              )}
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+              <DocumentPane
+                draft={openDraft}
+                draftNumber={draftId ? draftNumbers[draftId] : undefined}
+                loading={draftId !== null && openDraft === null}
+                pending={chat.pending}
+                tab={tab}
+                onTab={setTab}
+                onDraft={applyDraft}
+                job={job}
+                drive={drive}
+              />
+
+              {openDraft ? (
+                <ChatPanel
+                  messages={openDraft.messages}
+                  pending={chat.pending}
+                  socketState={chat.socketState}
+                  error={chat.error}
+                  onSend={chat.send}
+                  onClear={clearChat}
+                  className="h-[560px] lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]"
+                />
+              ) : (
+                <section className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center">
+                  <Sparkles className="size-6 text-muted-foreground" />
+                  <p className="max-w-xs text-sm text-muted-foreground">
+                    Build a resume first, then chat here to adjust it.
+                  </p>
+                </section>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   )
@@ -338,20 +386,25 @@ export default function ResumeBuilderPage() {
 
 type DocumentPaneProps = {
   draft: ResumeDraft | null
+  draftNumber?: number
   loading: boolean
   pending: PendingReply | null
   tab: DocTarget
   onTab: (tab: DocTarget) => void
   onDraft: (draft: ResumeDraft) => void
   job: Job | null
+  drive: GoogleDrive
 }
 
-function DocumentPane({ draft, loading, pending, tab, onTab, onDraft, job }: DocumentPaneProps) {
+function DocumentPane({ draft, draftNumber, loading, pending, tab, onTab, onDraft, job, drive }: DocumentPaneProps) {
   const [editing, setEditing] = useState<{ draftId: string; tab: DocTarget; text: string } | null>(null)
   const [showVersions, setShowVersions] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  // Google Docs this session exported, by `${draftId}:${tab}`.
+  const [driveFiles, setDriveFiles] = useState<Record<string, DriveFile>>({})
+  const [exporting, setExporting] = useState(false)
 
   if (loading || !draft) {
     return (
@@ -404,6 +457,40 @@ function DocumentPane({ draft, loading, pending, tab, onTab, onDraft, job }: Doc
       setTimeout(() => setCopied(false), 1500)
     } catch {
       setError("Could not copy to the clipboard.")
+    }
+  }
+
+  const driveKey = `${draft.id}:${tab}`
+  const driveFile = driveFiles[driveKey]
+
+  // Not connected yet: Google's sign-in opens in a popup first (it must open in this click
+  // handler, before any await, or the browser blocks it), then the export runs.
+  const saveToDrive = async () => {
+    setError(null)
+    if (drive.status?.available === false) {
+      setError("Google Drive export isn't set up: the API has no OAuth client (agents/resume_builder/google_client.json).")
+      return
+    }
+    if (!drive.status?.connected) {
+      try {
+        if (!(await drive.connect())) return
+      } catch (e) {
+        setError(errorMessage(e))
+        return
+      }
+    }
+    setExporting(true)
+    try {
+      const [file] = await exportDraftToDrive(draft.id, [tab])
+      if (file) setDriveFiles((prev) => ({ ...prev, [driveKey]: file }))
+      else setError("Nothing to save: this doc is empty.")
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        drive.markDisconnected()
+        setError("The Google Drive sign-in expired. Click Save to Drive to sign in again.")
+      } else setError(errorMessage(e))
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -469,6 +556,34 @@ function DocumentPane({ draft, loading, pending, tab, onTab, onDraft, job }: Doc
           <Button variant="ghost" size="icon-sm" onClick={download} aria-label="Download Markdown">
             <Download />
           </Button>
+          {drive.connecting ? (
+            <Button variant="ghost" size="sm" onClick={drive.cancelConnect}>
+              <LoaderCircle className="animate-spin" />
+              Waiting for Google… Cancel
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={saveToDrive}
+              disabled={drive.status === null || exporting || pending !== null}
+              title={draftNumber ? `Saves Draft ${draftNumber} to Google Drive, in career_pilot_resume/${draft.position ?? ""}` : undefined}
+            >
+              {exporting ? <LoaderCircle className="animate-spin" /> : <CloudUpload />}
+              {driveFile ? "Update Drive" : "Save to Drive"}
+            </Button>
+          )}
+          {driveFile && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Open in Google Drive"
+              nativeButton={false}
+              render={<a href={driveFile.url} target="_blank" rel="noreferrer" />}
+            >
+              <ExternalLink />
+            </Button>
+          )}
         </div>
       </header>
 

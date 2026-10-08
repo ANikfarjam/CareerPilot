@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { ArrowDown, ArrowUp, ExternalLink, Search } from "lucide-react"
+import { Fragment, useEffect, useState } from "react"
+import { ArrowDown, ArrowUp, ChevronRight, ExternalLink, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,8 @@ import { listJobs, updateJobAction, type Action, type Job } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 import { ACTIONS, errorMessage, formatDate, titleCase } from "./format"
+import { JobDetails } from "./job-details"
+import { MatchScore } from "./match-score"
 
 type SortBy = "update_at" | "compatibility" | "company_name"
 
@@ -18,6 +20,7 @@ const ACTION_ITEMS = Object.fromEntries(ACTIONS.map((a) => [a, titleCase(a)]))
 const FILTER_ITEMS = { all: "All statuses", ...ACTION_ITEMS }
 
 // Results tab: the saved (qualified) jobs, searchable and sortable, with an editable status.
+// Each row expands to show its key qualifications and description.
 // refreshKey changes when a run saves new jobs; onTotal reports the unfiltered count.
 export function ResultsTab({ refreshKey, onTotal }: { refreshKey: string; onTotal: (total: number) => void }) {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -29,6 +32,7 @@ export function ResultsTab({ refreshKey, onTotal }: { refreshKey: string; onTota
   const [action, setAction] = useState<Action | "all">("all")
   const [sortBy, setSortBy] = useState<SortBy>("update_at")
   const [order, setOrder] = useState<"asc" | "desc">("desc")
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 300)
@@ -70,6 +74,13 @@ export function ResultsTab({ refreshKey, onTotal }: { refreshKey: string; onTota
       setError(errorMessage(e))
     }
   }
+
+  const toggle = (id: string) =>
+    setExpanded((open) => {
+      const next = new Set(open)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
 
   const sortOn = (column: SortBy) => {
     if (sortBy === column) setOrder((o) => (o === "asc" ? "desc" : "asc"))
@@ -113,7 +124,10 @@ export function ResultsTab({ refreshKey, onTotal }: { refreshKey: string; onTota
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <SortHead label="Company" column="company_name" sortBy={sortBy} order={order} onSort={sortOn} className="pl-4" />
+              <TableHead className="w-8 pl-3">
+                <span className="sr-only">Details</span>
+              </TableHead>
+              <SortHead label="Company" column="company_name" sortBy={sortBy} order={order} onSort={sortOn} />
               <TableHead>Position</TableHead>
               <TableHead>Type</TableHead>
               <SortHead label="Match" column="compatibility" sortBy={sortBy} order={order} onSort={sortOn} />
@@ -125,51 +139,81 @@ export function ResultsTab({ refreshKey, onTotal }: { refreshKey: string; onTota
             </TableRow>
           </TableHeader>
           <TableBody>
-            {jobs.map((job) => (
-              <TableRow key={job.id}>
-                <TableCell className="pl-4 font-medium">{job.company_name}</TableCell>
-                <TableCell className="max-w-80 whitespace-normal">
-                  {job.position}
-                  {job.post_id && <span className="ml-1.5 text-xs text-muted-foreground">#{job.post_id}</span>}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{titleCase(job.job_type)}</TableCell>
-                <TableCell>
-                  <MatchScore score={job.compatibility} />
-                </TableCell>
-                <TableCell>
-                  <Select items={ACTION_ITEMS} value={job.action} onValueChange={(v) => v && v !== job.action && changeAction(job, v as Action)}>
-                    <SelectTrigger size="sm" className="w-44" aria-label={`Status of ${job.position}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ACTIONS.map((a) => (
-                        <SelectItem key={a} value={a}>
-                          {titleCase(a)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{formatDate(job.update_at)}</TableCell>
-                <TableCell className="pr-4 text-right">
-                  {job.link && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Open posting"
-                      nativeButton={false}
-                      render={<a href={job.link} target="_blank" rel="noopener noreferrer" />}
-                    >
-                      <ExternalLink />
-                    </Button>
+            {jobs.map((job) => {
+              const open = expanded.has(job.id)
+              return (
+                <Fragment key={job.id}>
+                  <TableRow>
+                    <TableCell className="pl-3">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={open ? "Hide details" : "Show details"}
+                        aria-expanded={open}
+                        aria-controls={`job-details-${job.id}`}
+                        onClick={() => toggle(job.id)}
+                      >
+                        <ChevronRight className={cn("transition-transform", open && "rotate-90")} />
+                      </Button>
+                    </TableCell>
+                    <TableCell className="cursor-pointer font-medium" onClick={() => toggle(job.id)}>
+                      {job.company_name}
+                    </TableCell>
+                    <TableCell className="max-w-80 cursor-pointer whitespace-normal" onClick={() => toggle(job.id)}>
+                      {job.position}
+                      {job.post_id && <span className="ml-1.5 text-xs text-muted-foreground">#{job.post_id}</span>}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{titleCase(job.job_type)}</TableCell>
+                    <TableCell>
+                      <MatchScore score={job.compatibility} />
+                    </TableCell>
+                    <TableCell>
+                      <Select items={ACTION_ITEMS} value={job.action} onValueChange={(v) => v && v !== job.action && changeAction(job, v as Action)}>
+                        <SelectTrigger size="sm" className="w-44" aria-label={`Status of ${job.position}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ACTIONS.map((a) => (
+                            <SelectItem key={a} value={a}>
+                              {titleCase(a)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(job.update_at)}</TableCell>
+                    <TableCell className="pr-4 text-right">
+                      {job.link && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Open posting"
+                          nativeButton={false}
+                          render={<a href={job.link} target="_blank" rel="noopener noreferrer" />}
+                        >
+                          <ExternalLink />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                  {open && (
+                    <TableRow id={`job-details-${job.id}`} className="hover:bg-transparent">
+                      <TableCell colSpan={8} className="bg-muted/30 p-4 whitespace-normal">
+                        <JobDetails job={job} />
+                      </TableCell>
+                    </TableRow>
                   )}
-                </TableCell>
-              </TableRow>
-            ))}
+                </Fragment>
+              )
+            })}
           </TableBody>
           {jobs.length === 0 && (
             <TableCaption className="mt-0 border-t py-16">
-              {loading ? "Loading…" : query || action !== "all" ? "No jobs match these filters." : "No results yet. Run a search to get started."}
+              {loading
+                ? "Loading…"
+                : query || action !== "all"
+                  ? "No jobs match these filters."
+                  : "No results yet. Run a search to get started."}
             </TableCaption>
           )}
         </Table>
@@ -201,17 +245,5 @@ function SortHead({ label, column, sortBy, order, onSort, className }: SortHeadP
         <Arrow className={cn("size-3.5", !active && "opacity-0")} />
       </button>
     </TableHead>
-  )
-}
-
-// compatibility is qualification_check's 0-10 score.
-function MatchScore({ score }: { score: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1 w-14 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-foreground/60" style={{ width: `${score * 10}%` }} />
-      </div>
-      <span className="text-sm tabular-nums">{score}</span>
-    </div>
   )
 }

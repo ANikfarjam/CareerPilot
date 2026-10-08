@@ -21,3 +21,5 @@ nohup.out
 
 .ollama.log
 .ollama.pid
+# Google OAuth client (Drive export)
+agents/resume_builder/google_client.json

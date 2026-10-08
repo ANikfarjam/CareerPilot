@@ -5,7 +5,7 @@ import * as sdk from "@/lib/client"
 import type { Action, AgentRunRequest, KnowledgeRunRequest, ListJobsData, ResumeDraftUpdate } from "@/lib/client"
 import { API_URL } from "@/lib/hey-api"
 
-import type { Sandbox } from "./types"
+import type { DocTarget, Sandbox } from "./types"
 
 export class ApiError extends Error {
   constructor(
@@ -122,8 +122,29 @@ export const getDraft = (draftId: string) => unwrap(sdk.getResumeDraft({ path: {
 export const updateDraft = (draftId: string, body: ResumeDraftUpdate) =>
   unwrap(sdk.updateResumeDraft({ path: { draft_id: draftId }, body }))
 
+// Empties the draft's chat history so old messages stop steering the replies; docs are kept.
+export const clearDraftChat = (draftId: string) => unwrap(sdk.clearResumeChat({ path: { draft_id: draftId } }))
+
 export const revertDraft = (draftId: string, version: number) =>
   unwrap(sdk.revertResumeDraft({ path: { draft_id: draftId, version } }))
+
+// Saves the docs as Google Docs in Drive's career_pilot_resume/<job title>/; re-exporting
+// updates the same docs. 401 until the user connects Google Drive (see driveLoginUrl).
+export const exportDraftToDrive = (draftId: string, targets: DocTarget[] = ["resume"]) =>
+  unwrap(sdk.exportResumeDraft({ path: { draft_id: draftId }, body: { targets } }))
+
+// ─────────────────────────────────────────────────────────
+// Google Drive sign-in (apis/reposetories/drive.py)
+// ─────────────────────────────────────────────────────────
+
+export const getDriveStatus = () => unwrap(sdk.getDriveStatus())
+
+// Revokes CareerPilot's access; docs already exported stay in the user's Drive.
+export const disconnectDrive = () => unwrap(sdk.disconnectDrive())
+
+// Opened in a popup: Google's consent page, then a page that closes itself. Not in the
+// generated SDK because it is a browser redirect, not a JSON request.
+export const driveLoginUrl = () => `${API_URL}/drive/login`
 
 // ws(s):// URL of a draft's chat, on the same host as API_URL (OpenAPI has no websockets,
 // so this one isn't generated; its events are ChatEvent).

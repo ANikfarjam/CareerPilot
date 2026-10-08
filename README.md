@@ -14,7 +14,8 @@ CareerPilot also tracks your applications, so you always know which jobs you've 
 - **Multi-portal search**: agents search across job-board APIs in a single run.
 - **Qualification matching**: key requirements are extracted from each posting and compared to your skills and experience.
 - **Application tracking**: keep a record of which jobs you've applied to.
-- **Resume builder**: builds a resume tailored to a saved job from your background, and suggests side projects that close its skill gaps.
+- **Resume builder**: builds a resume tailored to a saved job from your background, and suggests side projects that close its skill gaps. A chat assistant edits it for you.
+- **Google Drive export** (optional): saves your resumes as Google Docs in `career_pilot_resume/<job title>/` in your Drive.
 - **Runs locally**: the LLM runs on your own hardware, so your data stays on your machine.
 
 ## Requirements
@@ -84,16 +85,39 @@ just start_app   # API at http://localhost:8000 (docs at /docs)
 just run_gui     # frontend at http://localhost:3000
 ```
 
+### 6. Optional: Google Drive export
+
+The Resume Builder can save resumes to your Google Drive as Google Docs, from its **Save to Drive** button or when you ask the resume chat to. Users don't set anything up: the first **Save to Drive** opens a Google sign-in popup, and after **Allow** the resume is saved to `career_pilot_resume/<job title>/<company> – Draft N – Resume` (and `– Side projects`). Saving a draft again updates its doc instead of making a copy. The sign-in is kept in `Docs/google/token.json` (gitignored), and the **Disconnect** link in the editor revokes it.
+
+CareerPilot asks only for the `drive.file` scope, so it can see and change only the files and folders it creates.
+
+#### Maintainers: the OAuth client
+
+The popup needs one OAuth client for the whole project, shipped at `agents/resume_builder/google_client.json`. Without that file, the **Save to Drive** button is hidden. Google doesn't treat a Desktop app client's secret as confidential, so the file can be committed. To create it:
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create a project and enable the **Google Drive API**.
+2. Set up the **OAuth consent screen** (Google Auth Platform): user type **External**, the app name, a support email, and the `.../auth/drive.file` scope under **Data access**.
+3. Under **Audience**, click **Publish app** (**In production**). While the app is in **Testing**, only listed test users can sign in, and their sign-in expires after 7 days.
+4. Under **Clients**, create a client of type **Desktop app**, download its JSON and save it as `agents/resume_builder/google_client.json`.
+
+To use your own client without committing it, set `GOOGLE_OAUTH_CLIENT_FILE` in `.env`. `GOOGLE_OAUTH_TOKEN_FILE` moves the saved sign-in. Until Google verifies the app, users may see a "Google hasn't verified this app" screen they can click through (**Advanced → Go to CareerPilot**).
+
 ## Managing the Services
 
 Start and stop the agent (backend server) and the database container:
 
 ```bash
+# start the llm
+just start_llm
+
 # start the agent
 just start_app
 
 # start the database
 just start_db
+
+# stop the llm
+just stop_llm
 
 # stop the agent
 just stop_app

@@ -18,6 +18,8 @@ export type {
   DocFolder,
   DocNode,
   DraftVersion,
+  DriveFile,
+  DriveStatus,
   FunnelRow,
   JobOut,
   JobPage,

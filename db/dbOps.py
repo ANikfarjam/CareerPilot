@@ -348,6 +348,29 @@ def update_draft(id: UUID, resume: str = None, side_projects: str = None, note: 
         conn.close()
 
 
+def clear_draft_messages(id: UUID):
+    """
+        Empties a draft's chat history (the context the chat sends back to the model);
+        its resume, side projects and versions are kept.
+        @return: the updated draft dict, or None if not found
+    """
+    conn, session = db.connect()
+    try:
+        draft = session.get(models.ResumeDraft, id)
+        if draft is None:
+            return None
+        draft.messages = []
+        draft.update_at = datetime.datetime.now(datetime.UTC)
+        session.commit()
+        return _draft_dict(draft, session.get(models.JobBoard, draft.job_id))
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+        conn.close()
+
+
 def revert_draft(id: UUID, version: int):
     """
         Restores versions[version] of a draft; the current content becomes a new version first.

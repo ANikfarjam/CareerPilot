@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddPortalData, AddPortalErrors, AddPortalResponses, AddTargetPositionData, AddTargetPositionErrors, AddTargetPositionResponses, BuildResumeData, BuildResumeErrors, BuildResumeResponses, CreateUserDocsFoldersData, CreateUserDocsFoldersResponses, GetAnalyticsData, GetAnalyticsResponses, GetAnalyticsRunData, GetAnalyticsRunErrors, GetAnalyticsRunResponses, GetJobData, GetJobErrors, GetJobResponses, GetKnowledgeRunData, GetKnowledgeRunErrors, GetKnowledgeRunResponses, GetResumeDraftData, GetResumeDraftErrors, GetResumeDraftResponses, GetRunData, GetRunErrors, GetRunResponses, GetUserDocsData, GetUserDocsResponses, HealthData, HealthResponses, ListJobsData, ListJobsErrors, ListJobsResponses, ListKnowledgeRunsData, ListKnowledgeRunsResponses, ListPortalsData, ListPortalsResponses, ListResumeDraftsData, ListResumeDraftsErrors, ListResumeDraftsResponses, ListRunsData, ListRunsResponses, ListTargetPositionsData, ListTargetPositionsResponses, RemovePortalData, RemovePortalErrors, RemovePortalResponses, RemoveTargetPositionData, RemoveTargetPositionErrors, RemoveTargetPositionResponses, RevertResumeDraftData, RevertResumeDraftErrors, RevertResumeDraftResponses, StartAnalyticsRunData, StartAnalyticsRunErrors, StartAnalyticsRunResponses, StartKnowledgeRunData, StartKnowledgeRunErrors, StartKnowledgeRunResponses, StartRunData, StartRunErrors, StartRunResponses, UpdateJobActionData, UpdateJobActionErrors, UpdateJobActionResponses, UpdateResumeDraftData, UpdateResumeDraftErrors, UpdateResumeDraftResponses } from './types.gen';
+import type { AddPortalData, AddPortalErrors, AddPortalResponses, AddTargetPositionData, AddTargetPositionErrors, AddTargetPositionResponses, BuildResumeData, BuildResumeErrors, BuildResumeResponses, ClearResumeChatData, ClearResumeChatErrors, ClearResumeChatResponses, CreateUserDocsFoldersData, CreateUserDocsFoldersResponses, DisconnectDriveData, DisconnectDriveResponses, ExportResumeDraftData, ExportResumeDraftErrors, ExportResumeDraftResponses, GetAnalyticsData, GetAnalyticsResponses, GetAnalyticsRunData, GetAnalyticsRunErrors, GetAnalyticsRunResponses, GetDriveStatusData, GetDriveStatusResponses, GetJobData, GetJobErrors, GetJobResponses, GetKnowledgeRunData, GetKnowledgeRunErrors, GetKnowledgeRunResponses, GetResumeDraftData, GetResumeDraftErrors, GetResumeDraftResponses, GetRunData, GetRunErrors, GetRunResponses, GetUserDocsData, GetUserDocsResponses, HealthData, HealthResponses, ListJobsData, ListJobsErrors, ListJobsResponses, ListKnowledgeRunsData, ListKnowledgeRunsResponses, ListPortalsData, ListPortalsResponses, ListResumeDraftsData, ListResumeDraftsErrors, ListResumeDraftsResponses, ListRunsData, ListRunsResponses, ListTargetPositionsData, ListTargetPositionsResponses, RemovePortalData, RemovePortalErrors, RemovePortalResponses, RemoveTargetPositionData, RemoveTargetPositionErrors, RemoveTargetPositionResponses, RevertResumeDraftData, RevertResumeDraftErrors, RevertResumeDraftResponses, StartAnalyticsRunData, StartAnalyticsRunErrors, StartAnalyticsRunResponses, StartKnowledgeRunData, StartKnowledgeRunErrors, StartKnowledgeRunResponses, StartRunData, StartRunErrors, StartRunResponses, UpdateJobActionData, UpdateJobActionErrors, UpdateJobActionResponses, UpdateResumeDraftData, UpdateResumeDraftErrors, UpdateResumeDraftResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -176,6 +176,30 @@ export const updateResumeDraft = <ThrowOnError extends boolean = false>(options:
 export const revertResumeDraft = <ThrowOnError extends boolean = false>(options: Options<RevertResumeDraftData, ThrowOnError>): RequestResult<RevertResumeDraftResponses, RevertResumeDraftErrors, ThrowOnError> => (options.client ?? client).post<RevertResumeDraftResponses, RevertResumeDraftErrors, ThrowOnError>({ url: '/agents/resume/drafts/{draft_id}/revert/{version}', ...options });
 
 /**
+ * Clear Resume Chat
+ *
+ * Clears a draft's chat history so earlier messages stop steering the model's replies;
+ * the resume, side projects and versions are kept. 409 while a chat reply is being written.
+ */
+export const clearResumeChat = <ThrowOnError extends boolean = false>(options: Options<ClearResumeChatData, ThrowOnError>): RequestResult<ClearResumeChatResponses, ClearResumeChatErrors, ThrowOnError> => (options.client ?? client).delete<ClearResumeChatResponses, ClearResumeChatErrors, ThrowOnError>({ url: '/agents/resume/drafts/{draft_id}/messages', ...options });
+
+/**
+ * Export Resume Draft
+ *
+ * Saves a draft's resume and/or side projects to the user's Google Drive as Google Docs, in
+ * career_pilot_resume/<job title>/; exporting again updates the same docs. 401 until the user
+ * connects Google Drive (GET /drive/login), 503 if CareerPilot has no Google OAuth client.
+ */
+export const exportResumeDraft = <ThrowOnError extends boolean = false>(options: Options<ExportResumeDraftData, ThrowOnError>): RequestResult<ExportResumeDraftResponses, ExportResumeDraftErrors, ThrowOnError> => (options.client ?? client).post<ExportResumeDraftResponses, ExportResumeDraftErrors, ThrowOnError>({
+    url: '/agents/resume/drafts/{draft_id}/drive',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * List Portals
  *
  * Names of the enabled portals in portals.yml, for the frontend's portal picker.
@@ -264,6 +288,22 @@ export const updateJobAction = <ThrowOnError extends boolean = false>(options: O
         ...options.headers
     }
 });
+
+/**
+ * Get Drive Status
+ *
+ * Whether resumes can be exported to Google Drive: available (CareerPilot ships an OAuth
+ * client), connected (the user signed in) and the signed-in account's email.
+ */
+export const getDriveStatus = <ThrowOnError extends boolean = false>(options?: Options<GetDriveStatusData, ThrowOnError>): RequestResult<GetDriveStatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetDriveStatusResponses, unknown, ThrowOnError>({ url: '/drive/status', ...options });
+
+/**
+ * Disconnect Drive
+ *
+ * Signs CareerPilot out of Google Drive: revokes and deletes the saved token.
+ * Docs already exported stay in the user's Drive.
+ */
+export const disconnectDrive = <ThrowOnError extends boolean = false>(options?: Options<DisconnectDriveData, ThrowOnError>): RequestResult<DisconnectDriveResponses, unknown, ThrowOnError> => (options?.client ?? client).delete<DisconnectDriveResponses, unknown, ThrowOnError>({ url: '/drive', ...options });
 
 /**
  * Health

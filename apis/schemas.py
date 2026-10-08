@@ -346,6 +346,31 @@ class ResumeDraftUpdate(Schema):
     side_projects: Optional[str] = None
 
 
+DocTarget = Literal["resume", "side_projects"]
+
+
+class DriveExportRequest(Schema):
+    """Body of POST /agents/resume/drafts/{draft_id}/drive: which of the draft's docs to save
+    to Google Drive (under career_pilot_resume/<job title>/)."""
+    targets: list[DocTarget] = Field(default=["resume"], min_length=1)
+
+
+class DriveStatus(Schema):
+    """GET /drive/status: whether resumes can be exported to Google Drive. available is false when
+    CareerPilot has no OAuth client; connected once the user signed in from the UI."""
+    available: bool
+    connected: bool
+    email: Optional[str] = None  # the signed-in Google account
+
+
+class DriveFile(Schema):
+    """One Google Doc a draft was exported to; re-exporting the draft updates this same doc."""
+    target: DocTarget
+    id: str
+    name: str  # "<company> – Draft <n> – Resume" / "... – Side projects"
+    url: str  # opens the doc in Google Docs
+
+
 # ---------- job board queries (apis/reposetories/jobs.py) ----------
 
 class JobOut(Schema):

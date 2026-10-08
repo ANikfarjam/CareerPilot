@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Bot, LoaderCircle, MessagesSquare, SendHorizontal, TriangleAlert, WifiOff } from "lucide-react"
+import { Bot, Eraser, LoaderCircle, MessagesSquare, SendHorizontal, TriangleAlert, WifiOff } from "lucide-react"
 
 import { Markdown } from "@/components/markdown"
 import { Button } from "@/components/ui/button"
@@ -22,12 +22,13 @@ type ChatPanelProps = {
   socketState: SocketState
   error: string | null
   onSend: (content: string) => boolean
+  onClear?: () => void // empties the chat history; shown once there are messages
   className?: string
 }
 
 // Chat with the resume editor (resume builder page): saved messages, the reply being streamed,
 // and an input that sends on Enter (Shift+Enter for a new line).
-export function ChatPanel({ messages, pending, socketState, error, onSend, className }: ChatPanelProps) {
+export function ChatPanel({ messages, pending, socketState, error, onSend, onClear, className }: ChatPanelProps) {
   const [input, setInput] = useState("")
   const scroller = useRef<HTMLDivElement>(null)
   const canSend = socketState === "open" && !pending
@@ -48,7 +49,21 @@ export function ChatPanel({ messages, pending, socketState, error, onSend, class
           <MessagesSquare className="size-4 text-brand-teal" />
           Resume assistant
         </div>
-        <ConnectionBadge state={socketState} />
+        <div className="flex items-center gap-1">
+          {onClear && messages.length > 0 && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={onClear}
+              disabled={pending !== null}
+              title="Clears the conversation the assistant reads back; your documents are kept"
+            >
+              <Eraser />
+              Clear chat
+            </Button>
+          )}
+          <ConnectionBadge state={socketState} />
+        </div>
       </header>
 
       <div ref={scroller} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">

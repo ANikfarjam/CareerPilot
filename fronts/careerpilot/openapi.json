@@ -625,6 +625,108 @@
         }
       }
     },
+    "/agents/resume/drafts/{draft_id}/messages": {
+      "delete": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Clear Resume Chat",
+        "description": "Clears a draft's chat history so earlier messages stop steering the model's replies;\nthe resume, side projects and versions are kept. 409 while a chat reply is being written.",
+        "operationId": "clear_resume_chat",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeDraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/resume/drafts/{draft_id}/drive": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Export Resume Draft",
+        "description": "Saves a draft's resume and/or side projects to the user's Google Drive as Google Docs, in\ncareer_pilot_resume/<job title>/; exporting again updates the same docs. 401 until the user\nconnects Google Drive (GET /drive/login), 503 if CareerPilot has no Google OAuth client.",
+        "operationId": "export_resume_draft",
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriveExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriveFile"
+                  },
+                  "title": "Response Export Resume Draft"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agents/portals": {
       "get": {
         "tags": [
@@ -1121,6 +1223,50 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drive/status": {
+      "get": {
+        "tags": [
+          "drive"
+        ],
+        "summary": "Get Drive Status",
+        "description": "Whether resumes can be exported to Google Drive: available (CareerPilot ships an OAuth\nclient), connected (the user signed in) and the signed-in account's email.",
+        "operationId": "get_drive_status",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drive": {
+      "delete": {
+        "tags": [
+          "drive"
+        ],
+        "summary": "Disconnect Drive",
+        "description": "Signs CareerPilot out of Google Drive: revokes and deletes the saved token.\nDocs already exported stay in the user's Drive.",
+        "operationId": "disconnect_drive",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveStatus"
                 }
               }
             }
@@ -1845,6 +1991,92 @@
         ],
         "title": "DraftVersion",
         "description": "A resume draft's content before one edit (a chat edit, a manual save or a revert)."
+      },
+      "DriveExportRequest": {
+        "properties": {
+          "targets": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "resume",
+                "side_projects"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Targets",
+            "default": [
+              "resume"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "DriveExportRequest",
+        "description": "Body of POST /agents/resume/drafts/{draft_id}/drive: which of the draft's docs to save\nto Google Drive (under career_pilot_resume/<job title>/)."
+      },
+      "DriveFile": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "resume",
+              "side_projects"
+            ],
+            "title": "Target"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target",
+          "id",
+          "name",
+          "url"
+        ],
+        "title": "DriveFile",
+        "description": "One Google Doc a draft was exported to; re-exporting the draft updates this same doc."
+      },
+      "DriveStatus": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "connected",
+          "email"
+        ],
+        "title": "DriveStatus",
+        "description": "GET /drive/status: whether resumes can be exported to Google Drive. available is false when\nCareerPilot has no OAuth client; connected once the user signed in from the UI."
       },
       "FunnelRow": {
         "properties": {

@@ -106,9 +106,37 @@ stop_app:
     fi
     rm -f .api.pid
 
-# Runs the Next.js frontend at http://localhost:3000.
+# Runs the Next.js frontend at http://localhost:3000 in the foreground.
+# setsid gives pnpm and its next child their own process group so stop_gui can kill both.
+# Stop it with Ctrl+C, or `just stop_gui` from another terminal.
 run_gui:
-    cd fronts/careerpilot && pnpm dev
+    #!/usr/bin/env bash
+    if [ -f .gui.pid ] && kill -0 "$(cat .gui.pid)" 2>/dev/null; then
+        echo "Frontend already running (pid $(cat .gui.pid))"; exit 0
+    fi
+    (cd fronts/careerpilot && exec setsid pnpm dev) &
+    echo $! > .gui.pid
+    trap 'kill -- -$(cat .gui.pid) 2>/dev/null; rm -f .gui.pid' INT TERM EXIT
+    wait
+
+stop_gui:
+    #!/usr/bin/env bash
+    if [ -f .gui.pid ] && kill -- -"$(cat .gui.pid)" 2>/dev/null; then
+        echo "Frontend stopped"
+    else
+        echo "Frontend is not running"
+    fi
+    rm -f .gui.pid
+
+# Gracefully stops everything: the API first (so nothing is mid-request against the model
+# or DB), then Ollama, Postgres and the frontend. Steps that aren't running are skipped.
+shutdown:
+    #!/usr/bin/env bash
+    just stop_app
+    just stop_llm
+    just stop_db || true
+    just stop_gui
+    echo "CareerPilot stopped"
 
 # Writes the FastAPI OpenAPI spec to fronts/careerpilot/openapi.json without starting the server.
 # create_engine doesn't connect on import, so a placeholder DATABASE_URL is enough.

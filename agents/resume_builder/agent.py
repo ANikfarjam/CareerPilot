@@ -9,13 +9,17 @@ How it works:
   saved to job_board_table).
     1. `load_job()` reads the posting from job_board_table.
     2. `load_background()` reads the candidate's knowledge base
-       (Docs/user_docs/user_knowledge.md) plus the full write-up of every project
-       (Docs/user_docs/projects/*/*.md); the knowledge base only summarizes them.
+       (Docs/user_docs/user_knowledge.md) plus the full write-ups
+       (Docs/user_docs/projects/*/*.md) of the projects that best match the posting,
+       as many as fit in the model's context; the knowledge base summarizes them all.
     3. `write_resume()` has the model write a Markdown resume tailored to the posting.
     4. `recommend_side_projects()` has the model propose side projects that close
        the posting's skill gaps.
   Two calls instead of one: num_predict is shared with gpt-oss's analysis
   channel, and a resume plus recommendations in one reply risks being cut off.
+  Safeguards (agents/resume_builder/guards.py): each prompt is checked to fit the
+  context (Ollama would silently cut the background off), and each reply must be a
+  Markdown document (not a question back to the user) or the build fails unsaved.
 
 Orchestration:
   - `run_resume_builder(job_id, model)` does all four and returns
@@ -36,24 +40,47 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents.portal_search.agent import _final_channel
 from agents.qualification_check.agent import KNOWLEDGE_FILE, MAX_DESCRIPTION_CHARS, _text, load_knowledge
+from agents.resume_builder.guards import CHARS_PER_TOKEN, check_built_doc, check_fits, estimate_tokens
+from agents.utils.langchainConfig import PROMPT_BUDGET_TOKENS
 from db.dbOps import get_job
 from db.documents import read_description
 
 PROJECTS_DIR = KNOWLEDGE_FILE.parent / "projects"
 
 
-def load_projects(projects_dir: Path = PROJECTS_DIR) -> str:
-    """Every projects/<name>/*.md, each under a "## <name>" heading."""
-    parts = []
-    for path in sorted(projects_dir.glob("*/*.md")):
-        parts.append(f"## {path.parent.name}\n\n{path.read_text().strip()}")
+def load_projects(projects_dir: Path = PROJECTS_DIR, job: dict | None = None, max_chars: int | None = None) -> str:
+    """projects/<name>/*.md, each under a "## <name>" heading. With a job, the ones sharing the
+    most keywords with its posting come first; with max_chars, write-ups that don't fit are left
+    out (the knowledge base still summarizes them)."""
+    projects = [(path.parent.name, path.read_text().strip()) for path in sorted(projects_dir.glob("*/*.md"))]
+    if job is not None:
+        from agents.resume_builder.context import _keywords  # context imports this module
+        keywords = _keywords(f"{job['position']} {job['description']}")
+        projects.sort(key=lambda p: -sum(k in p[1].lower() for k in keywords))
+    parts, used = [], 0
+    for name, text in projects:
+        part = f"## {name}\n\n{text}"
+        if max_chars is not None and used + len(part) > max_chars:
+            continue
+        parts.append(part)
+        used += len(part) + 2
     return "\n\n".join(parts)
 
 
-def load_background(knowledge_file: Path = KNOWLEDGE_FILE, projects_dir: Path = PROJECTS_DIR) -> str:
-    """Knowledge base + project write-ups, as one prompt section."""
-    return (f"# Candidate knowledge base\n\n{load_knowledge(knowledge_file)}\n\n"
-            f"# Candidate projects (full write-ups)\n\n{load_projects(projects_dir)}")
+def load_background(knowledge_file: Path = KNOWLEDGE_FILE, projects_dir: Path = PROJECTS_DIR,
+                    job: dict | None = None) -> str:
+    """Knowledge base + project write-ups, as one prompt section. With a job, only the
+    best-matching write-ups that fit the prompt budget next to the longer prompt and the posting."""
+    knowledge = f"# Candidate knowledge base\n\n{load_knowledge(knowledge_file)}"
+    max_chars = None
+    if job is not None:
+        fixed = estimate_tokens(knowledge + max(RESUME_PROMPT, SIDE_PROJECTS_PROMPT, key=len)
+                                + TASK_PROMPT.format(**job))
+        max_chars = max(0, (PROMPT_BUDGET_TOKENS - fixed) * CHARS_PER_TOKEN)
+    projects = load_projects(projects_dir, job, max_chars)
+    if not projects:
+        return knowledge
+    return f"{knowledge}\n\n# Candidate projects (full write-ups)\n\n{projects}"
 
 
 def load_job(job_id: uuid.UUID) -> dict:
@@ -89,6 +116,10 @@ Rules:
 - Use the posting's terminology where it truthfully describes the candidate's work.
 - Bullets start with a strong verb and show impact; keep the metrics the knowledge base gives.
 - Fit on one page.
+- If a detail isn't in the knowledge base (a phone number, a GitHub link, a date), leave it
+  out. Never write placeholders like [Your Name] or [Phone], and never guess.
+- Never ask the candidate questions or ask for more information: write the best resume the
+  knowledge base supports.
 
 Reply with only the resume in Markdown, no other text, in this layout:
 # <Name>
@@ -121,6 +152,7 @@ Find the biggest gaps: required skills, tools or domains the candidate has no ev
 Propose 2-3 side projects that close them. Each one should be buildable by one person in
 about 1-3 weekends, build on what the candidate already knows, and end in something they
 can show (a repo, a demo, a write-up).
+Base the gaps only on the knowledge base and projects below; never ask the candidate questions.
 
 Reply with only Markdown, no other text, in this layout:
 ## Gaps
@@ -145,29 +177,33 @@ Job description:
 {description}"""
 
 
-def _ask(model: BaseChatModel, system: str, job: dict, background: str) -> str:
-    reply = model.invoke([SystemMessage(system.format(background=background)), HumanMessage(TASK_PROMPT.format(**job))])
-    return _final_channel(reply.text).strip()
+def _ask(model: BaseChatModel, system: str, job: dict, background: str, name: str) -> str:
+    """One build call; PromptTooLong if it wouldn't fit, ValueError if the reply isn't a document."""
+    messages = [SystemMessage(system.format(background=background)), HumanMessage(TASK_PROMPT.format(**job))]
+    check_fits(messages, name, hint=f"Shorten {KNOWLEDGE_FILE.name} (or regenerate it) and try again.")
+    reply = model.invoke(messages)
+    return check_built_doc(_final_channel(reply.text).strip(), name)
 
 
 def write_resume(model: BaseChatModel, job: dict, background: str) -> str:
     """Markdown resume tailored to the job."""
-    return _ask(model, RESUME_PROMPT, job, background)
+    return _ask(model, RESUME_PROMPT, job, background, "resume")
 
 
 def recommend_side_projects(model: BaseChatModel, job: dict, background: str) -> str:
     """Markdown list of the job's skill gaps and side projects that close them."""
-    return _ask(model, SIDE_PROJECTS_PROMPT, job, background)
+    return _ask(model, SIDE_PROJECTS_PROMPT, job, background, "side-project list")
 
 
 def run_resume_builder(job_id: uuid.UUID, model: BaseChatModel | None = None) -> dict:
     """Loads the job and the candidate's background, then has the model write both parts.
 
     Returns {"job": dict, "resume": str, "side_projects": str}.
-    Raises LookupError (no such job) or ValueError (job has no description) before loading the model.
+    Raises LookupError (no such job) or ValueError (job has no description; prompt too long;
+    the model didn't return a document).
     """
     job = load_job(job_id)
-    background = load_background()
+    background = load_background(job=job)
     if model is None:
         from agents.utils.langchainConfig import chat_model as model  # loads the local LLM
     return {

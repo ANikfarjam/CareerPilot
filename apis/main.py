@@ -13,6 +13,7 @@ import fastapi
 from fastapi.middleware.cors import CORSMiddleware
 
 from apis.reposetories.agents import AGENTS_ROUTER
+from apis.reposetories.drive import DRIVE_ROUTER
 from apis.reposetories.jobs import JOBS_ROUTER
 
 # Operation ids are the route function names (list_jobs, get_resume_draft, ...), so the
@@ -37,6 +38,7 @@ app.add_middleware(
 
 app.include_router(AGENTS_ROUTER)
 app.include_router(JOBS_ROUTER)
+app.include_router(DRIVE_ROUTER)
 
 
 @app.get("/health")
