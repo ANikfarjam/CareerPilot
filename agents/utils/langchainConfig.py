@@ -22,7 +22,8 @@ chat_model = ChatOllama(
     reasoning=True,
     num_predict=NUM_PREDICT,
     num_ctx=NUM_CTX,
-    # Keep the weights loaded between calls: reloading 13 GB takes ~2 minutes
-    # (Ollama unloads after 5 idle minutes by default).
+    # Keep the weights loaded between a run's calls: reloading 13 GB takes ~2 minutes
+    # (Ollama unloads after 5 idle minutes by default). Each agent entry point unloads
+    # them when its run ends (agents/utils/memory_allocation.release_memory).
     keep_alive=-1,
 )

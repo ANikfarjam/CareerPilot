@@ -42,6 +42,7 @@ from agents.portal_search.agent import _final_channel
 from agents.qualification_check.agent import KNOWLEDGE_FILE, MAX_DESCRIPTION_CHARS, _text, load_knowledge
 from agents.resume_builder.guards import CHARS_PER_TOKEN, check_built_doc, check_fits, estimate_tokens
 from agents.utils.langchainConfig import PROMPT_BUDGET_TOKENS
+from agents.utils.memory_allocation import released_memory
 from db.dbOps import get_job
 from db.documents import read_description
 
@@ -219,7 +220,8 @@ def main() -> None:
     parser.add_argument("--out", type=Path, help="write the Markdown here instead of printing it")
     args = parser.parse_args()
 
-    report = run_resume_builder(args.job_id)
+    with released_memory():  # unload the LLM once the run is done
+        report = run_resume_builder(args.job_id)
     text = f"{report['resume']}\n\n---\n\n{report['side_projects']}\n"
     if args.out:
         args.out.write_text(text)

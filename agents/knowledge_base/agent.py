@@ -58,6 +58,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from agents.portal_search.agent import PORTALS_FILE, _final_channel
 from agents.qualification_check.agent import KNOWLEDGE_FILE, MAX_ATTEMPTS, _text
+from agents.utils.memory_allocation import released_memory
 
 USER_DOCS_DIR = KNOWLEDGE_FILE.parent
 PREVIOUS_FILE = KNOWLEDGE_FILE.with_suffix(".prev.md")
@@ -663,7 +664,8 @@ def main() -> None:
     parser.add_argument("--skip-portals", action="store_true", help="leave portals.yml alone")
     args = parser.parse_args()
 
-    report = run_knowledge_base(update_portals=not args.skip_portals, dry_run=args.dry_run)
+    with released_memory():  # unload the LLM once the run is done
+        report = run_knowledge_base(update_portals=not args.skip_portals, dry_run=args.dry_run)
     if args.dry_run:
         print(report["knowledge"])
     else:

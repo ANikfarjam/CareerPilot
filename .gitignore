@@ -16,6 +16,7 @@ Docs/
 
 # Backend process files (just start_app)
 .api.pid
+.gui.pid
 .api.log
 nohup.out
 

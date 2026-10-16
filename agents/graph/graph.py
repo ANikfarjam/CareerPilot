@@ -37,6 +37,7 @@ from agents.qualification_check.agent import KNOWLEDGE_FILE, make_qualification_
 from agents.sandbox import SandboxConfig
 from agents.sandbox.config import PROJECT_ROOT
 from agents.utils.dbingestion import make_db_ingestion_node
+from agents.utils.memory_allocation import released_memory
 
 OUTPUT_DIR = PROJECT_ROOT / "results"
 
@@ -91,8 +92,9 @@ def main() -> None:
         if not portals:
             parser.error(f"no enabled portal matches {args.portals!r}")
 
-    app = build_graph(sandbox_config=SandboxConfig(service=args.sandbox), skip_known=not args.rescan)
-    state = app.invoke({"portals": portals})
+    with released_memory():  # unload the LLM once the run is done
+        app = build_graph(sandbox_config=SandboxConfig(service=args.sandbox), skip_known=not args.rescan)
+        state = app.invoke({"portals": portals})
 
     args.out.mkdir(parents=True, exist_ok=True)
     scored = state.get("scored_positions")

@@ -36,6 +36,7 @@ from agents.analytics.agent import build_tables, load_jobs, make_analytics_node
 from agents.qualification_check.agent import KNOWLEDGE_FILE
 from agents.sandbox import SandboxConfig
 from agents.graph.graph import OUTPUT_DIR
+from agents.utils.memory_allocation import released_memory
 
 
 class AnalyticsState(TypedDict, total=False):
@@ -77,8 +78,9 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=OUTPUT_DIR, help="output directory")
     args = parser.parse_args()
 
-    app = build_analytic_graph(sandbox_config=SandboxConfig(service=args.sandbox))
-    state = app.invoke({})
+    with released_memory():  # unload the LLM once the run is done
+        app = build_analytic_graph(sandbox_config=SandboxConfig(service=args.sandbox))
+        state = app.invoke({})
 
     print(f"{len(state['jobs'])} jobs\n")
     for name, df in state["tables"].items():

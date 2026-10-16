@@ -24,6 +24,7 @@ from agents.graph.analytic_graph import build_analytic_graph
 from agents.graph.graph import build_graph
 from agents.portal_search.agent import load_portals, load_target_positions
 from agents.sandbox import SandboxConfig
+from agents.utils.memory_allocation import release_memory
 
 AGENTS_ROUTER: typing.Final = fastapi.APIRouter(prefix="/agents", tags=["agents"])
 
@@ -93,6 +94,7 @@ def _run_graph(run_id: uuid.UUID, portals: list[dict], manual_positions: list[di
         run.status, run.error = RunStatus.failed, str(e)
     finally:
         run.finished_at = _now()
+        release_memory()  # unload the LLM so the machine doesn't freeze
         RUN_LOCK.release()
 
 
@@ -169,6 +171,7 @@ def _run_analytics(run_id: uuid.UUID) -> None:
         run.status, run.error = RunStatus.failed, str(e)
     finally:
         run.finished_at = _now()
+        release_memory()  # unload the LLM so the machine doesn't freeze
         RUN_LOCK.release()
 
 
@@ -247,6 +250,7 @@ def _run_knowledge(run_id: uuid.UUID) -> None:
         run.status, run.error = RunStatus.failed, str(e)
     finally:
         run.finished_at = _now()
+        release_memory()  # unload the LLM so the machine doesn't freeze
         RUN_LOCK.release()
 
 
@@ -301,6 +305,7 @@ def build_resume(job_id: uuid.UUID):
     except ValueError as e:
         raise fastapi.HTTPException(status_code=422, detail=str(e))
     finally:
+        release_memory()
         RUN_LOCK.release()
     job = report["job"]
     draft = dbOps.create_draft(job["id"], report["resume"], report["side_projects"])
@@ -474,6 +479,14 @@ async def resume_chat(ws: fastapi.WebSocket, draft_id: uuid.UUID):
             await ws.send_json({"type": "done", "draft": ResumeDraftOut(**draft).model_dump(mode="json")})
     except fastapi.WebSocketDisconnect:
         pass
+    finally:
+        # The model stays loaded between turns (a reload takes ~2 minutes) and is unloaded when
+        # the chat closes. If another run holds the lock, it unloads the model when it finishes.
+        if RUN_LOCK.acquire(blocking=False):
+            try:
+                await run_in_threadpool(release_memory)
+            finally:
+                RUN_LOCK.release()
 
 
 @AGENTS_ROUTER.get("/portals", response_model=list[str])

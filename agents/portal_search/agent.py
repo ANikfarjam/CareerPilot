@@ -47,6 +47,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.runtime import Runtime
 from langgraph.types import Command
+from ollama import ResponseError
 
 from agents.sandbox import SandboxConfig, SandboxSession
 from agents.utils.known_jobs import KNOWN_LINKS_FILE, drop_known, known_links_file, load_known_links
@@ -181,7 +182,14 @@ def build_portal_search_agent(model: BaseChatModel | None = None):
         name, step = state["portal"].get("name"), state["steps"] + 1
         log = runtime.context.log
         log("info", f"{name} · step {step}/{MAX_STEPS}: waiting on model", detail=True)
-        reply = model.invoke(state["messages"])
+        try:
+            reply = model.invoke(state["messages"])
+        except ResponseError as e:
+            # gpt-oss also has a built-in python tool whose arguments are raw source, not JSON;
+            # Ollama fails to parse that call, so run the source the error carries instead.
+            if (block := _unparsed_tool_call_block(e)) is None:
+                raise
+            reply = AIMessage(block)
         if thinking := reply.additional_kwargs.get("reasoning_content"):
             log("info", f"{name} · thinking: {_excerpt(thinking, 200)}", detail=True)
         text = _final_channel(reply.text)
@@ -380,16 +388,42 @@ def _tool_call_script(reply: AIMessage) -> str | None:
     """Shell script of the reply's first tool call that carries one, e.g. container.exec's
     {"cmd": ["bash", "-lc", "<script>"]}; None if no call has a command."""
     for call in getattr(reply, "tool_calls", None) or []:
-        args = call.get("args") or {}
-        cmd = next((args[k] for k in ("cmd", "command", "script", "code", "input") if args.get(k)), None)
-        if isinstance(cmd, list):
-            if len(cmd) >= 3 and cmd[0] in ("bash", "sh") and cmd[1] in ("-c", "-lc"):
-                cmd = cmd[2]
-            else:
-                cmd = shlex.join(str(c) for c in cmd)
-        if isinstance(cmd, str) and cmd.strip():
-            return cmd.strip()
+        if script := _args_script(call.get("args") or {}):
+            return script
     return None
+
+
+def _args_script(args: dict) -> str | None:
+    """Shell script in a tool call's arguments, e.g. {"cmd": ["bash", "-lc", "<script>"]}; None if none."""
+    cmd = next((args[k] for k in ("cmd", "command", "script", "code", "input") if args.get(k)), None)
+    if isinstance(cmd, list):
+        if len(cmd) >= 3 and cmd[0] in ("bash", "sh") and cmd[1] in ("-c", "-lc"):
+            cmd = cmd[2]
+        else:
+            cmd = shlex.join(str(c) for c in cmd)
+    return cmd.strip() if isinstance(cmd, str) and cmd.strip() else None
+
+
+def _unparsed_tool_call_block(e: ResponseError) -> str | None:
+    """Code block of a tool call Ollama couldn't parse ("error parsing tool call: raw='<args>', err=...");
+    bash if the raw arguments are JSON carrying a command (container.exec), python if they compile
+    as Python, else bash. None for any other error."""
+    m = re.search(r"error parsing tool call: raw='(.*)', err=", str(e.error), re.DOTALL)
+    if not m or not (raw := m.group(1).strip()):
+        return None
+    try:
+        args = json.loads(raw, strict=False)
+    except json.JSONDecodeError:
+        args = None
+    if isinstance(args, dict):
+        script = _args_script(args)
+        return f"```bash\n{script}\n```" if script else None
+    try:
+        compile(raw, "<tool call>", "exec")
+        lang = "python"
+    except SyntaxError:
+        lang = "bash"
+    return f"```{lang}\n{raw}\n```"
 
 
 def _extract_code(text: str) -> tuple[str, str] | None:
